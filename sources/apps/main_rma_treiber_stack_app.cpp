@@ -6,7 +6,8 @@
 
 int main(int argc, char *argv[])
 {
-    rma_treiber_stack::RmaTreiberStack<int> rmaTreiberStack;
+    MPI_Comm comm;
+    rma_treiber_stack::RmaTreiberStack<int> rmaTreiberStack(comm);
     int i = 3;
     rmaTreiberStack.push(i);
     rmaTreiberStack.pop();

@@ -9,10 +9,12 @@ add_library(
         INTERFACE
         include/IStack.hpp
 )
+add_library(sub::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
         ${PROJECT_NAME}
         INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${PROJECT_NAME}>
+        .
 )
