@@ -6,15 +6,15 @@
 
 namespace cutom_mpi_extensions
 {
-    MpiException::MpiException(const char *t_info, const char *t_file, const char *t_rknnFunctionName, int t_line,
-                               int t_mpiError)
+    MpiException::MpiException(const char *t_info, const char *t_file, const char *t_functionName, int t_line,
+                               int t_mpiStatus)
             :
             std::exception(),
             m_info(t_info),
             m_file(t_file),
             m_line(t_line),
-            m_mpiError(t_mpiError),
-            m_rknnFunctionName(t_rknnFunctionName)
+            m_mpiStatus(t_mpiStatus),
+            m_functionName(t_functionName)
     {
 
     }
@@ -37,8 +37,8 @@ namespace cutom_mpi_extensions
         return m_line;
     }
 
-    int MpiException::getMpiError()
+    int MpiException::getMpiStatus()
     {
-        return m_mpiError;
+        return m_mpiStatus;
     }
 }
