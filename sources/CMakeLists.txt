@@ -19,3 +19,4 @@ target_link_libraries(
         PUBLIC
         rma_treiber_stack
 )
+install(TARGETS rma_treiber_stack_app DESTINATION bin/)
