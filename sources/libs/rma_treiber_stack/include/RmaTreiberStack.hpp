@@ -5,9 +5,6 @@
 #ifndef SOURCES_RMATREIBERSTACK_HPP
 #define SOURCES_RMATREIBERSTACK_HPP
 
-#include <iostream>
-#include <stack>
-
 #include "IStack.hpp"
 
 namespace rma_treiber_stack
@@ -21,26 +18,20 @@ namespace rma_treiber_stack
     private:
         void pushImpl(T& data)
         {
-            std::cout << "push\n";
-            m_stack.push(data);
+
         }
         void popImpl()
         {
-            std::cout << "pop\n";
-            m_stack.pop();
+
         }
         T& topImpl()
         {
-            std::cout << "top\n";
-            return m_stack.top();
+
         }
         bool isEmptyImpl()
         {
-            std::cout << "empty\n";
-            return m_stack.empty();
-        }
 
-        std::stack<T> m_stack;
+        }
     };
 } // rma_treiber_stack
 
