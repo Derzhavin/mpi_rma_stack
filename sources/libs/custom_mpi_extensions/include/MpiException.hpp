@@ -21,17 +21,17 @@ namespace custom_mpi_extensions
 
         [[nodiscard]] const char * what () const noexcept final;
 
-        std::string_view getInfo() const;
-        std::string_view getFile() const;
-        int getLine() const;
-        int getMpiStatus() const;
+        [[nodiscard]] std::string_view getInfo() const;
+        [[nodiscard]] std::string_view getFile() const;
+        [[nodiscard]] int getLine() const;
+        [[nodiscard]] int getMpiStatus() const;
 
     private:
+        int m_line;
+        int m_mpiStatus;
         std::string m_info;
         std::string m_file;
-        int m_line;
         std::string m_functionName;
-        int m_mpiStatus;
 
     };
 }

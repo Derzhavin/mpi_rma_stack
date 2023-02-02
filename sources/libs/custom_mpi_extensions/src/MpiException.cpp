@@ -10,11 +10,11 @@ namespace custom_mpi_extensions
                                int t_mpiStatus)
     :
     std::exception(),
+    m_line(t_line),
+    m_mpiStatus(t_mpiStatus),
     m_info(t_info),
     m_file(t_file),
-    m_line(t_line),
-    m_functionName(t_functionName),
-    m_mpiStatus(t_mpiStatus)
+    m_functionName(t_functionName)
     {
 
     }
