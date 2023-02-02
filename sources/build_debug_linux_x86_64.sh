@@ -5,10 +5,13 @@ export CXX=/usr/bin/mpic++
 export CXXFLAGS="-g3 -march=native -Wall -Wextra -pedantic"
 export CFLAGS="-g3 -march=native -Wall -Wextra -pedantic"
 
+BUILD_DIR=cmake-build-debug
+INSTALL_DIR=install-debug
+
 cmake -G "Unix Makefiles" \
       -S . \
-      -B cmake-build-debug \
+      -B ${BUILD_DIR} \
       -D CMAKE_BUILD_TYPE=Debug
 
-cmake --build cmake-build-debug -j6 --verbose
-cmake --install  cmake-build-debug --prefix install-debug-linux-x86_64
+cmake --build ${BUILD_DIR} -j6 --verbose
+cmake --install ${BUILD_DIR} --prefix ${INSTALL_DIR}

@@ -24,15 +24,16 @@ namespace rma_treiber_stack
     private:
         void pushImpl(T& data)
         {
-
+            std::cout << "Push\n";
         }
         void popImpl()
         {
-
+            std::cout << "Pop\n";
         }
         T& topImpl()
         {
             T t;
+            std::cout << "Top\n";
             return t;
         }
         bool isEmptyImpl()
@@ -50,7 +51,7 @@ namespace rma_treiber_stack
         auto mpiStatus = MPI_Comm_rank(comm, &m_rank);
 
         if (mpiStatus != MPI_SUCCESS)
-            throw cutom_mpi_extensions::MpiException("failed to get rank", __FILE__, __func__ , __LINE__, mpiStatus);
+            throw custom_mpi_extensions::MpiException("failed to get rank", __FILE__, __func__ , __LINE__, mpiStatus);
     }
 } // rma_treiber_stack
 

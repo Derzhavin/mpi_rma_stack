@@ -6,11 +6,12 @@
 #define SOURCES_MPIEXCEPTION_HPP
 
 
+#include <string>
+#include <iostream>
 #include <exception>
 #include <string_view>
-#include <string>
 
-namespace cutom_mpi_extensions
+namespace custom_mpi_extensions
 {
     class MpiException: public std::exception
     {
@@ -20,10 +21,10 @@ namespace cutom_mpi_extensions
 
         [[nodiscard]] const char * what () const noexcept final;
 
-        std::string_view getInfo();
-        std::string_view getFile();
-        int getLine();
-        int getMpiStatus();
+        std::string_view getInfo() const;
+        std::string_view getFile() const;
+        int getLine() const;
+        int getMpiStatus() const;
 
     private:
         std::string m_info;
@@ -31,7 +32,9 @@ namespace cutom_mpi_extensions
         int m_line;
         std::string m_functionName;
         int m_mpiStatus;
+
     };
 }
 
+std::ostream& operator<<(std::ostream& out, const custom_mpi_extensions::MpiException& ex);
 #endif //SOURCES_MPIEXCEPTION_HPP
