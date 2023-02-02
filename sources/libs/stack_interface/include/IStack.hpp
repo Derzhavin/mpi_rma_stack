@@ -40,6 +40,6 @@ namespace stack_interface
             return static_cast<StackImpl&>(*this);
         }
     };
-} // lock_free_stack_interface
+} // stack_interface
 
 #endif //SOURCES_ISTACK_HPP

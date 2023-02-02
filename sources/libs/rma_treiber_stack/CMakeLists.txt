@@ -10,7 +10,7 @@ add_library(
 target_link_libraries(
         ${PROJECT_NAME}
         INTERFACE
-        lock_free_stack_interface
+        stack_interface
 )
 target_include_directories(
         ${PROJECT_NAME}
