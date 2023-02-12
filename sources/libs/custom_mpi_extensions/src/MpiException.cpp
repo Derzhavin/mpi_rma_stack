@@ -2,7 +2,7 @@
 // Created by denis on 02.02.23.
 //
 
-#include "include/MpiException.hpp"
+#include "include/MpiException.h"
 
 namespace custom_mpi_extensions
 {

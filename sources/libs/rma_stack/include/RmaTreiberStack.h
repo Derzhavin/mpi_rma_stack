@@ -2,20 +2,20 @@
 // Created by denis on 22.01.23.
 //
 
-#ifndef SOURCES_RMATREIBERSTACK_HPP
-#define SOURCES_RMATREIBERSTACK_HPP
+#ifndef SOURCES_RMATREIBERSTACK_H
+#define SOURCES_RMATREIBERSTACK_H
 
 #include <mpi.h>
 
-#include "IStack.hpp"
-#include "MpiException.hpp"
+#include "IStack.h"
+#include "MpiException.h"
 
-namespace rma_treiber_stack
+namespace rma_stack
 {
     template<typename T>
     class RmaTreiberStack: public stack_interface::IStack<RmaTreiberStack<T>>
     {
-        friend class stack_interface::IStack_traits<rma_treiber_stack::RmaTreiberStack<T>>;
+        friend class stack_interface::IStack_traits<rma_stack::RmaTreiberStack<T>>;
         typedef typename stack_interface::IStack_traits<RmaTreiberStack>::ValueType ValueType;
 
     public:
@@ -24,16 +24,13 @@ namespace rma_treiber_stack
     private:
         void pushImpl(T& data)
         {
-            std::cout << "Push\n";
         }
         void popImpl()
         {
-            std::cout << "Pop\n";
         }
         T& topImpl()
         {
             T t;
-            std::cout << "Top\n";
             return t;
         }
         bool isEmptyImpl()
@@ -53,35 +50,35 @@ namespace rma_treiber_stack
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi_extensions::MpiException("failed to get rank", __FILE__, __func__ , __LINE__, mpiStatus);
     }
-} // rma_treiber_stack
+} // rma_stack
 
 
 namespace stack_interface
 {
     template<typename T>
-    class IStack_traits<rma_treiber_stack::RmaTreiberStack < T>>
+    struct IStack_traits<rma_stack::RmaTreiberStack <T>>
     {
-        friend class IStack<rma_treiber_stack::RmaTreiberStack<T>>;
-        friend class rma_treiber_stack::RmaTreiberStack<T>;
+        friend class IStack<rma_stack::RmaTreiberStack<T>>;
+        friend class rma_stack::RmaTreiberStack<T>;
         typedef T ValueType;
 
     private:
-        static void pushImpl(rma_treiber_stack::RmaTreiberStack<T>& stack, T& value)
+        static void pushImpl(rma_stack::RmaTreiberStack<T>& stack, T& value)
         {
             stack.pushImpl(value);
         }
-        static void popImpl(rma_treiber_stack::RmaTreiberStack<T>& stack)
+        static void popImpl(rma_stack::RmaTreiberStack<T>& stack)
         {
             stack.popImpl();
         }
-        static ValueType& topImpl(rma_treiber_stack::RmaTreiberStack<T>& stack)
+        static ValueType& topImpl(rma_stack::RmaTreiberStack<T>& stack)
         {
             return stack.topImpl();
         }
-        static bool isEmptyImpl(rma_treiber_stack::RmaTreiberStack<T>& stack)
+        static bool isEmptyImpl(rma_stack::RmaTreiberStack<T>& stack)
         {
             return stack.isEmptyImpl();
         }
     };
 }
-#endif //SOURCES_RMATREIBERSTACK_HPP
+#endif //SOURCES_RMATREIBERSTACK_H
