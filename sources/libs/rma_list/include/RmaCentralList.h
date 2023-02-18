@@ -36,7 +36,7 @@ namespace rma_list
         ~RmaCentralList();
 
     private:
-        void pushBackImpl(T& data);
+        void pushBackImpl(T& value);
         void popBackImpl();
         T& tailImpl();
         size_t getSizeImpl();
@@ -47,6 +47,7 @@ namespace rma_list
         bool isFreeNodesLimitAchieved();
         void tryFreeNodes();
         void freeNodes();
+        CentralNode<T> getTopNode();
 
     private:
         MPI_Datatype m_mpiDataType;
@@ -80,14 +81,26 @@ namespace rma_list
     }
 
     template<typename T>
-    void RmaCentralList<T>::pushBackImpl(T& data)
+    void RmaCentralList<T>::pushBackImpl(T& value)
     {
+        CentralNode<T> oldTop = getTopNode();
+        const auto oldTopDisp = (MPI_Aint)MPI_BOTTOM;
+
+        CentralNode<T> newTop(value, oldTopDisp);
+
+        const auto win = m_mpiWinWrapper.getMpiWin();
+        void* resulAddr{nullptr};
+        auto mpiStatus = MPI_Compare_and_swap(&newTop, oldTop, resulAddr, &m_mpiDataType, CENTRAL_RANK, oldTopDisp, win);
+        if (mpiStatus != MPI_SUCCESS)
+            throw custom_mpi_extensions::MpiException("failed to execute MPI CAS", __FILE__, __func__ , __LINE__, mpiStatus);
+
         tryFreeNodes();
     }
 
     template<typename T>
     void RmaCentralList<T>::popBackImpl()
     {
+        CentralNode<T> top = getTopNode();
         tryFreeNodes();
     }
 
@@ -108,6 +121,12 @@ namespace rma_list
     bool RmaCentralList<T>::isEmptyImpl()
     {
         return true;
+    }
+
+    template<typename T>
+    CentralNode<T> rma_list::RmaCentralList<T>::getTopNode()
+    {
+        return rma_list::CentralNode<T>(T(), 0);
     }
 
     template<typename T>
