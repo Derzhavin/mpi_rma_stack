@@ -7,7 +7,7 @@
 
 #include <mpi.h>
 
-namespace rma_list
+namespace rma_stack
 {
     struct DistribNodePtr
     {

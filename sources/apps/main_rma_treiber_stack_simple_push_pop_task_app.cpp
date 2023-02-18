@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "RmaTreiberStack.h"
+#include "RmaTreiberCentralStack.h"
 #include "include/stack_tasks.h"
 
 int main(int argc, char *argv[])
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     try
     {
-        rma_stack::RmaTreiberStack<int> rmaTreiberStack(comm);
+        rma_stack::RmaTreiberCentralStack<int> rmaTreiberStack(comm, MPI_INT);
         runSimplePushPopTask(rmaTreiberStack);
     }
     catch (custom_mpi_extensions::MpiException& ex)

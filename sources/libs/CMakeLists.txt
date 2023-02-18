@@ -3,7 +3,5 @@ get_filename_component(project_dir ${CMAKE_CURRENT_LIST_DIR} NAME)
 project(${project_dir})
 
 add_subdirectory(custom_mpi_extensions)
-add_subdirectory(list_interface)
-add_subdirectory(rma_list)
 add_subdirectory(stack_interface)
 add_subdirectory(rma_stack)

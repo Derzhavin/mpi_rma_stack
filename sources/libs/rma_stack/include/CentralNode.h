@@ -7,7 +7,7 @@
 
 #include <mpi.h>
 
-namespace rma_list
+namespace rma_stack
 {
     template<typename T>
     class CentralNode
@@ -19,7 +19,6 @@ namespace rma_list
         T const& getValue() const;
         void setValue(const T& t_value);
         [[nodiscard]] MPI_Aint getNext() const;
-
         void setNext(MPI_Aint t_next);
 
     private:
@@ -56,7 +55,6 @@ namespace rma_list
     {
         m_nextDisp = t_nextDisp;
     }
-
-} // rma_list
+} // rma_stack
 
 #endif //SOURCES_CENTRALNODE_H
