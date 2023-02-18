@@ -2,8 +2,8 @@
 // Created by denis on 22.01.23.
 //
 
-#ifndef SOURCES_ISTACK_HPP
-#define SOURCES_ISTACK_HPP
+#ifndef SOURCES_ISTACK_H
+#define SOURCES_ISTACK_H
 
 
 namespace stack_interface
@@ -42,4 +42,4 @@ namespace stack_interface
     };
 } // stack_interface
 
-#endif //SOURCES_ISTACK_HPP
+#endif //SOURCES_ISTACK_H

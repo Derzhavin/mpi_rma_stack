@@ -2,14 +2,14 @@
 // Created by denis on 02.02.23.
 //
 
-#ifndef SOURCES_MPIEXCEPTION_HPP
-#define SOURCES_MPIEXCEPTION_HPP
+#ifndef SOURCES_MPIEXCEPTION_H
+#define SOURCES_MPIEXCEPTION_H
 
 
 #include <string>
-#include <iostream>
 #include <exception>
 #include <string_view>
+#include <ostream>
 
 namespace custom_mpi_extensions
 {
@@ -37,4 +37,4 @@ namespace custom_mpi_extensions
 }
 
 std::ostream& operator<<(std::ostream& out, const custom_mpi_extensions::MpiException& ex);
-#endif //SOURCES_MPIEXCEPTION_HPP
+#endif //SOURCES_MPIEXCEPTION_H

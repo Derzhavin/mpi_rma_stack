@@ -4,8 +4,8 @@
 
 #include <iostream>
 
-#include "RmaTreiberStack.h"
-#include "include/stack_tasks.h"
+#include "RmaCentralList.h"
+#include "include/list_tasks.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,8 +16,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        rma_stack::RmaTreiberStack<int> rmaTreiberStack(comm);
-        runSimplePushPopTask(rmaTreiberStack);
+        rma_list::RmaCentralList<int> rmaCentralList(comm, 0);
+        runSimplePushPopTask(rmaCentralList);
     }
     catch (custom_mpi_extensions::MpiException& ex)
     {
