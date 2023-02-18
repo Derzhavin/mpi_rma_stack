@@ -30,6 +30,10 @@ namespace stack_interface
         {
             return StackTraitsImpl::topImpl(impl());
         }
+        size_t size()
+        {
+            return StackTraitsImpl::sizeImpl(impl());
+        }
         bool isEmpty()
         {
             return StackTraitsImpl::isEmptyImpl(impl());

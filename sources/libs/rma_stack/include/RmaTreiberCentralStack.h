@@ -42,7 +42,7 @@ namespace rma_stack
         void pushImpl(const T &value);
         T popImpl();
         T& topImpl();
-        size_t getSizeImpl();
+        size_t sizeImpl();
         bool isEmptyImpl();
         // public interface end
 
@@ -128,7 +128,7 @@ namespace rma_stack
     }
 
     template<typename T>
-    size_t RmaTreiberCentralStack<T>::getSizeImpl()
+    size_t RmaTreiberCentralStack<T>::sizeImpl()
     {
         return 0;
     }
@@ -154,7 +154,7 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::isFreeNodesLimitAchieved()
     {
-        return FREE_NODES_LIMIT > getSizeImpl();
+        return FREE_NODES_LIMIT > sizeImpl();
     }
 
     template<typename T>
@@ -234,6 +234,10 @@ namespace stack_interface
         static ValueType& topImpl(rma_stack::RmaTreiberCentralStack<T>& stack)
         {
             return stack.topImpl();
+        }
+        static size_t sizeImpl(rma_stack::RmaTreiberCentralStack<T>& stack)
+        {
+            return stack.sizeImpl();
         }
         static bool isEmptyImpl(rma_stack::RmaTreiberCentralStack<T>& stack)
         {
