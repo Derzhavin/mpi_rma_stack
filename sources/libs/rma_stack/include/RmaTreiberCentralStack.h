@@ -39,7 +39,7 @@ namespace rma_stack
 
     private:
         // public interface begin
-        void pushImpl(T& value);
+        void pushImpl(const T &value);
         T popImpl();
         T& topImpl();
         size_t getSizeImpl();
@@ -53,14 +53,13 @@ namespace rma_stack
         void tryFreeNodes();
         void freeNodes();
         CentralNode<T> getTopNode();
-        bool tryPush(T& value);
+        bool tryPush(const T &value);
         std::optional<CentralNode<T>> tryPop();
 
     private:
         MPI_Datatype m_mpiDataType;
         int m_rank{-1};
         custom_mpi::MpiWinWrapper m_mpiWinWrapper;
-        std::unique_ptr<CentralNode<T>,CentralNodeDeleter_t> m_pTop{nullptr, nullptr};
     };
 
     template<typename T>
@@ -77,7 +76,6 @@ namespace rma_stack
         {
             CentralNode<T> *pTop{nullptr};
             const auto mpiWin = m_mpiWinWrapper.getMpiWin();
-            const auto disp = custom_mpi::createObjectInRmaMemory<CentralNode<T>>(mpiWin, pTop, 0);
         }
     }
 
@@ -88,7 +86,7 @@ namespace rma_stack
     }
 
     template<typename T>
-    void RmaTreiberCentralStack<T>::pushImpl(T& value)
+    void RmaTreiberCentralStack<T>::pushImpl(const T &value)
     {
         while(!isStopRequested())
         {
@@ -190,7 +188,7 @@ namespace rma_stack
     }
 
     template<typename T>
-    bool RmaTreiberCentralStack<T>::tryPush(T &value)
+    bool RmaTreiberCentralStack<T>::tryPush(const T &value)
     {
         CentralNode<T> oldTop = getTopNode();
         const auto oldTopDisp = (MPI_Aint)MPI_BOTTOM;
@@ -225,7 +223,7 @@ namespace stack_interface
         typedef T ValueType;
 
     private:
-        static void pushImpl(rma_stack::RmaTreiberCentralStack<T>& stack, T& value)
+        static void pushImpl(rma_stack::RmaTreiberCentralStack<T>& stack, const T &value)
         {
             stack.pushImpl(value);
         }

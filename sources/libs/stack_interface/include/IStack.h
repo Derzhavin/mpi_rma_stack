@@ -18,7 +18,7 @@ namespace stack_interface
         typedef typename StackTraitsImpl::ValueType ValueType;
 
     public:
-        void push(ValueType& value)
+        void push(const ValueType &value)
         {
             StackTraitsImpl::pushImpl(impl(), value);
         }
