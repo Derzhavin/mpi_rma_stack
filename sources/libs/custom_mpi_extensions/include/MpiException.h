@@ -11,13 +11,6 @@
 #include <string_view>
 #include <ostream>
 
-#define CHECK_MPI_STATUS(STATUS, MSG) \
-{\
-    auto mpiStatus = STATUS;\
-    if (mpiStatus != MPI_SUCCESS)\
-        throw custom_mpi_extensions::MpiException(MSG, __FILE__, __func__ , __LINE__, mpiStatus);\
-}
-
 namespace custom_mpi_extensions
 {
     class MpiException: public std::exception

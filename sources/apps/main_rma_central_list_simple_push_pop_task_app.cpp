@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 
     try
     {
-        rma_list::RmaCentralList<int> rmaCentralList(comm);
+        rma_list::RmaCentralList<int> rmaCentralList(comm, 0);
         runSimplePushPopTask(rmaCentralList);
     }
     catch (custom_mpi_extensions::MpiException& ex)

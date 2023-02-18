@@ -33,7 +33,6 @@ namespace custom_mpi_extensions
         try
         {
             new (address)T(std::forward<Args>(arg)...);
-            throw std::runtime_error("undefined");
         }
         catch (std::exception& ex)
         {

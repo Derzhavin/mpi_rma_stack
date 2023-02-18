@@ -29,6 +29,10 @@ namespace list_interface
         {
             return ListTraitsImpl::tailImpl(impl());
         }
+        size_t getSize()
+        {
+            return ListTraitsImpl::getSize(impl());
+        }
         bool isEmpty()
         {
             return ListTraitsImpl::isEmptyImpl(impl());
