@@ -29,8 +29,8 @@ namespace rma_stack
 
     public:
         explicit RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType,
-                                        const std::chrono::nanoseconds &t_backoffMinDelay,
-                                        const std::chrono::nanoseconds &t_backoffMaxDelay, int t_freeNodesLimit);
+                                        const std::chrono::nanoseconds &t_rBackoffMinDelay,
+                                        const std::chrono::nanoseconds &t_rBackoffMaxDelay, int t_freeNodesLimit);
         RmaTreiberCentralStack(RmaTreiberCentralStack&) = delete;
         RmaTreiberCentralStack(RmaTreiberCentralStack&&)  noexcept = default;
         RmaTreiberCentralStack& operator=(RmaTreiberCentralStack&) = delete;
@@ -71,14 +71,14 @@ namespace rma_stack
 
     template<typename T>
     RmaTreiberCentralStack<T>::RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType,
-                                                      const std::chrono::nanoseconds &t_backoffMinDelay,
-                                                      const std::chrono::nanoseconds &t_backoffMaxDelay,
+                                                      const std::chrono::nanoseconds &t_rBackoffMinDelay,
+                                                      const std::chrono::nanoseconds &t_rBackoffMaxDelay,
                                                       int t_freeNodesLimit)
             :
             m_mpiDataType(t_mpiDataType),
             m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD),
-            backoffMinDelay(t_backoffMinDelay),
-            backoffMaxDelay(t_backoffMaxDelay),
+            backoffMinDelay(t_rBackoffMinDelay),
+            backoffMaxDelay(t_rBackoffMaxDelay),
             freeNodesLimit(t_freeNodesLimit)
     {
         auto mpiStatus = MPI_Comm_rank(comm, &m_rank);

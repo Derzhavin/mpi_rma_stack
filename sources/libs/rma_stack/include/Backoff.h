@@ -13,7 +13,7 @@ namespace rma_stack
     class Backoff
     {
     public:
-        Backoff(const std::chrono::nanoseconds &t_minDelayNs, const std::chrono::nanoseconds &t_maxDelayNs);
+        Backoff(const std::chrono::nanoseconds &t_rMinDelayNs, const std::chrono::nanoseconds &t_rMaxDelayNs);
 
         void backoff();
 

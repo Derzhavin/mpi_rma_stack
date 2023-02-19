@@ -17,7 +17,7 @@ namespace rma_stack
         explicit CentralNode(T t_value);
 
         T const& getValue() const;
-        void setValue(const T& t_value);
+        void setValue(const T& t_rValue);
         [[nodiscard]] MPI_Aint getNext() const;
         void setNext(MPI_Aint t_next);
 
@@ -27,10 +27,10 @@ namespace rma_stack
     };
 
     template<typename T>
-    CentralNode<T>::CentralNode(T t_value, MPI_Aint t_nextDisp): m_value(t_value), m_nextDisp(t_nextDisp) {}
+    CentralNode<T>::CentralNode(T t_value, MPI_Aint t_nextDisp): m_value(std::move(t_value)), m_nextDisp(t_nextDisp) {}
 
     template<typename T>
-    CentralNode<T>::CentralNode(T t_value): CentralNode(t_value, (MPI_Aint) MPI_BOTTOM) {}
+    CentralNode<T>::CentralNode(T t_value): CentralNode(std::move(t_value), (MPI_Aint) MPI_BOTTOM) {}
 
     template<typename T>
     T const &CentralNode<T>::getValue() const
@@ -39,9 +39,9 @@ namespace rma_stack
     }
 
     template<typename T>
-    void CentralNode<T>::setValue(const T &t_value)
+    void CentralNode<T>::setValue(const T &t_rValue)
     {
-        m_value = t_value;
+        m_value = t_rValue;
     }
 
     template<typename T>
