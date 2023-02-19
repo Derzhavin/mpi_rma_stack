@@ -1,7 +1,7 @@
 #!/bin/bash
 
-export CC=/usr/bin/mpicc
-export CXX=/usr/bin/mpic++
+export CC=/usr/local/bin/mpicc
+export CXX=/usr/local/bin/mpic++
 export CXXFLAGS="-O3 -march=native -Wall -Wextra -pedantic"
 export CFLAGS="-O3 -march=native -Wall -Wextra -pedantic"
 

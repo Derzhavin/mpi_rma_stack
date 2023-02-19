@@ -25,7 +25,7 @@ namespace rma_stack
         friend class stack_interface::IStack_traits<rma_stack::RmaTreiberCentralStack<T>>;
         typedef typename stack_interface::IStack_traits<RmaTreiberCentralStack>::ValueType ValueType;
 
-        typedef void (*CentralNodeDeleter_t)(CentralNode<T>*);
+        typedef void (*CountedNodeDeleter_t)(CountedNode*);
 
     public:
         explicit RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType,
@@ -64,9 +64,12 @@ namespace rma_stack
         const std::chrono::nanoseconds backoffMaxDelay;
 
     private:
-        MPI_Datatype m_mpiDataType;
+        MPI_Comm m_comm;
         int m_rank{-1};
+        MPI_Datatype m_mpiDataType;
+        MPI_Aint m_headCountedNodeDisp{(MPI_Aint)MPI_BOTTOM};
         custom_mpi::MpiWinWrapper m_mpiWinWrapper;
+        std::unique_ptr<CountedNode, CountedNodeDeleter_t> m_pHeadCountedNode{nullptr, nullptr};
     };
 
     template<typename T>
@@ -74,22 +77,26 @@ namespace rma_stack
                                                       const std::chrono::nanoseconds &t_rBackoffMinDelay,
                                                       const std::chrono::nanoseconds &t_rBackoffMaxDelay,
                                                       int t_freeNodesLimit)
-            :
-            m_mpiDataType(t_mpiDataType),
-            m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD),
-            backoffMinDelay(t_rBackoffMinDelay),
-            backoffMaxDelay(t_rBackoffMaxDelay),
-            freeNodesLimit(t_freeNodesLimit)
+    :
+    m_comm(comm),
+    m_mpiDataType(t_mpiDataType),
+    m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD),
+    backoffMinDelay(t_rBackoffMinDelay),
+    backoffMaxDelay(t_rBackoffMaxDelay),
+    freeNodesLimit(t_freeNodesLimit)
     {
-        auto mpiStatus = MPI_Comm_rank(comm, &m_rank);
+        auto mpiStatus = MPI_Comm_rank(m_comm, &m_rank);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi_extensions::MpiException("failed to get rank", __FILE__, __func__ , __LINE__, mpiStatus);
 
         if (isCentralRank())
         {
-            CentralNode<T> *pTop{nullptr};
-            const auto mpiWin = m_mpiWinWrapper.getMpiWin();
+            CountedNode *pHead{nullptr};
+            const auto win = m_mpiWinWrapper.getMpiWin();
+            m_headCountedNodeDisp = custom_mpi::createObjectInRmaMemory<CountedNode>(win, pHead);
+            m_pHeadCountedNode = std::unique_ptr<CountedNode, CountedNodeDeleter_t>(pHead, custom_mpi::freeRmaMemory);
         }
+        MPI_Bcast(&m_headCountedNodeDisp, 1, MPI_AINT, CENTRAL_RANK, m_comm);
     }
 
     template<typename T>
@@ -157,7 +164,7 @@ namespace rma_stack
     template<typename T>
     CentralNode<T> rma_stack::RmaTreiberCentralStack<T>::getTopNode()
     {
-        return rma_stack::CentralNode<T>(T(), 0);
+        return rma_stack::CentralNode<T>(T());
     }
 
     template<typename T>
@@ -206,13 +213,13 @@ namespace rma_stack
     bool RmaTreiberCentralStack<T>::tryPush(const T &value)
     {
         CentralNode<T> oldTop = getTopNode();
-        const auto oldTopDisp = (MPI_Aint)MPI_BOTTOM;
+        const CountedNode oldTopCountedNode;
 
-        CentralNode<T> newTop(value, oldTopDisp);
+        CentralNode<T> newTop(value, oldTopCountedNode);
 
         const auto win = m_mpiWinWrapper.getMpiWin();
         void* resulAddr{nullptr};
-        auto mpiStatus = MPI_Compare_and_swap(&newTop, &oldTop, resulAddr, m_mpiDataType, CENTRAL_RANK, oldTopDisp, win);
+        auto mpiStatus = MPI_Compare_and_swap(&newTop, &oldTop, resulAddr, m_mpiDataType, CENTRAL_RANK, oldTopCountedNode.nodeDisp, win);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi_extensions::MpiException("failed to execute MPI CAS", __FILE__, __func__ , __LINE__, mpiStatus);
 

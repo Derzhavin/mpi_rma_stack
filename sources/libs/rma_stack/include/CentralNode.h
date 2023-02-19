@@ -7,30 +7,39 @@
 
 #include <mpi.h>
 
+#include "CountedNode.h"
+
 namespace rma_stack
 {
     template<typename T>
     class CentralNode
     {
     public:
-        explicit CentralNode(T t_value, MPI_Aint t_nextDisp);
+        explicit CentralNode(T t_value, CountedNode t_countedNode);
         explicit CentralNode(T t_value);
 
         T const& getValue() const;
         void setValue(const T& t_rValue);
-        [[nodiscard]] MPI_Aint getNext() const;
-        void setNext(MPI_Aint t_next);
+        [[nodiscard]] CountedNode getCountedNode() const;
+        void setCountedNode(CountedNode t_countedNode);
 
     private:
-        MPI_Aint m_nextDisp;
+        CountedNode m_countedNode;
         T m_value{};
     };
 
     template<typename T>
-    CentralNode<T>::CentralNode(T t_value, MPI_Aint t_nextDisp): m_value(std::move(t_value)), m_nextDisp(t_nextDisp) {}
+    CentralNode<T>::CentralNode(T t_value, CountedNode t_countedNode)
+    :
+    m_value(std::move(t_value)),
+    m_countedNode(t_countedNode)
+    {}
 
     template<typename T>
-    CentralNode<T>::CentralNode(T t_value): CentralNode(std::move(t_value), (MPI_Aint) MPI_BOTTOM) {}
+    CentralNode<T>::CentralNode(T t_value)
+    :
+    CentralNode(std::move(t_value), CountedNode((MPI_Aint)MPI_BOTTOM))
+    {}
 
     template<typename T>
     T const &CentralNode<T>::getValue() const
@@ -45,15 +54,15 @@ namespace rma_stack
     }
 
     template<typename T>
-    MPI_Aint CentralNode<T>::getNext() const
+    CountedNode CentralNode<T>::getCountedNode() const
     {
-        return m_nextDisp;
+        return m_countedNode;
     }
 
     template<typename T>
-    void CentralNode<T>::setNext(MPI_Aint t_nextDisp)
+    void CentralNode<T>::setCountedNode(CountedNode t_countedNode)
     {
-        m_nextDisp = t_nextDisp;
+        m_countedNode = t_countedNode;
     }
 } // rma_stack
 
