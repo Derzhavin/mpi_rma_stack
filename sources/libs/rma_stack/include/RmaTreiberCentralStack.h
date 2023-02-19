@@ -10,9 +10,10 @@
 #include <optional>
 
 #include "IStack.h"
-#include "CentralNode.h"
 #include "rma.h"
 #include "MpiWinWrapper.h"
+#include "CentralNode.h"
+#include "Backoff.h"
 
 namespace rma_stack
 {
@@ -27,10 +28,9 @@ namespace rma_stack
         typedef void (*CentralNodeDeleter_t)(CentralNode<T>*);
 
     public:
-        constexpr inline static int CENTRAL_RANK{0};
-        constexpr inline static int FREE_NODES_LIMIT{10};
-
-        explicit RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType);
+        explicit RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType,
+                                        const std::chrono::nanoseconds &t_backoffMinDelay,
+                                        const std::chrono::nanoseconds &t_backoffMaxDelay, int t_freeNodesLimit);
         RmaTreiberCentralStack(RmaTreiberCentralStack&) = delete;
         RmaTreiberCentralStack(RmaTreiberCentralStack&&)  noexcept = default;
         RmaTreiberCentralStack& operator=(RmaTreiberCentralStack&) = delete;
@@ -56,6 +56,13 @@ namespace rma_stack
         bool tryPush(const T &value);
         std::optional<CentralNode<T>> tryPop();
 
+    public:
+        constexpr inline static int CENTRAL_RANK{0};
+
+        const int freeNodesLimit;
+        const std::chrono::nanoseconds backoffMinDelay;
+        const std::chrono::nanoseconds backoffMaxDelay;
+
     private:
         MPI_Datatype m_mpiDataType;
         int m_rank{-1};
@@ -63,10 +70,16 @@ namespace rma_stack
     };
 
     template<typename T>
-    RmaTreiberCentralStack<T>::RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType)
+    RmaTreiberCentralStack<T>::RmaTreiberCentralStack(MPI_Comm comm, MPI_Datatype t_mpiDataType,
+                                                      const std::chrono::nanoseconds &t_backoffMinDelay,
+                                                      const std::chrono::nanoseconds &t_backoffMaxDelay,
+                                                      int t_freeNodesLimit)
             :
             m_mpiDataType(t_mpiDataType),
-            m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD)
+            m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD),
+            backoffMinDelay(t_backoffMinDelay),
+            backoffMaxDelay(t_backoffMaxDelay),
+            freeNodesLimit(t_freeNodesLimit)
     {
         auto mpiStatus = MPI_Comm_rank(comm, &m_rank);
         if (mpiStatus != MPI_SUCCESS)
@@ -88,6 +101,7 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberCentralStack<T>::pushImpl(const T &value)
     {
+        Backoff backoff(backoffMinDelay, backoffMaxDelay);
         while(!isStopRequested())
         {
             if (tryPush(value))
@@ -96,7 +110,7 @@ namespace rma_stack
             }
             else
             {
-            // TODO: implement backoff strategy
+                backoff.backoff();
             }
         }
     }
@@ -104,6 +118,7 @@ namespace rma_stack
     template<typename T>
     T RmaTreiberCentralStack<T>::popImpl()
     {
+        Backoff backoff(backoffMinDelay, backoffMaxDelay);
         while (!isStopRequested())
         {
             auto optNode = tryPop();
@@ -116,7 +131,7 @@ namespace rma_stack
             }
             else
             {
-                // TODO: implement backoff strategy
+                backoff.backoff();
             }
         }
     }
@@ -154,7 +169,7 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::isFreeNodesLimitAchieved()
     {
-        return FREE_NODES_LIMIT > sizeImpl();
+        return freeNodesLimit > sizeImpl();
     }
 
     template<typename T>
