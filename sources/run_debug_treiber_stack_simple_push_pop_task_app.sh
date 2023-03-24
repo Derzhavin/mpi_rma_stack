@@ -1,1 +1,0 @@
-mpiexec -np 6 ./install-debug/bin/rma_treiber_stack_simple_push_pop_task_app

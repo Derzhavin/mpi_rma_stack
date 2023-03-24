@@ -39,7 +39,7 @@ namespace rma_stack
 
     private:
         // public interface begin
-        void pushImpl(const T &value);
+        void pushImpl(const T &rValue);
         T popImpl();
         T& topImpl();
         size_t sizeImpl();
@@ -53,7 +53,7 @@ namespace rma_stack
         void tryFreeNodes();
         void freeNodes();
         CentralNode<T> getTopNode();
-        bool tryPush(const T &value);
+        bool tryPush(const T &rValue);
         std::optional<CentralNode<T>> tryPop();
 
     public:
@@ -80,7 +80,7 @@ namespace rma_stack
     :
     m_comm(comm),
     m_mpiDataType(t_mpiDataType),
-    m_mpiWinWrapper(MPI_INFO_NULL, MPI_COMM_WORLD),
+    m_mpiWinWrapper(MPI_INFO_NULL, comm),
     backoffMinDelay(t_rBackoffMinDelay),
     backoffMaxDelay(t_rBackoffMaxDelay),
     freeNodesLimit(t_freeNodesLimit)
@@ -106,12 +106,12 @@ namespace rma_stack
     }
 
     template<typename T>
-    void RmaTreiberCentralStack<T>::pushImpl(const T &value)
+    void RmaTreiberCentralStack<T>::pushImpl(const T &rValue)
     {
         Backoff backoff(backoffMinDelay, backoffMaxDelay);
         while(!isStopRequested())
         {
-            if (tryPush(value))
+            if (tryPush(rValue))
             {
                 return;
             }
@@ -210,20 +210,22 @@ namespace rma_stack
     }
 
     template<typename T>
-    bool RmaTreiberCentralStack<T>::tryPush(const T &value)
+    bool RmaTreiberCentralStack<T>::tryPush(const T &rValue)
     {
-        CentralNode<T> oldTop = getTopNode();
-        const CountedNode oldTopCountedNode;
-
-        CentralNode<T> newTop(value, oldTopCountedNode);
+        const CountedNode newNode;
+        newNode.
+//        CentralNode<T> oldTop = getTopNode();
+//        CentralNode<T> newTop(rValue, oldTopCountedNode);
 
         const auto win = m_mpiWinWrapper.getMpiWin();
-        void* resulAddr{nullptr};
-        auto mpiStatus = MPI_Compare_and_swap(&newTop, &oldTop, resulAddr, m_mpiDataType, CENTRAL_RANK, oldTopCountedNode.nodeDisp, win);
+        MPI_Win_lock_all(0, win);
+        CentralNode<T> resulAddr;
+        auto mpiStatus = MPI_Compare_and_swap(&newTop, &oldTop, &resulAddr, m_mpiDataType, CENTRAL_RANK, oldTopCountedNode.nodeDisp, win);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi_extensions::MpiException("failed to execute MPI CAS", __FILE__, __func__ , __LINE__, mpiStatus);
+        MPI_Win_unlock_all(win);
 
-        return &oldTop == resulAddr;
+        return oldTop == resulAddr;
     }
 
     template<typename T>

@@ -48,7 +48,7 @@ namespace custom_mpi_extensions
     template<typename T>
     void freeRmaMemory(T* address) noexcept
     {
-        if constexpr(std::is_trivially_destructible_v<T>)
+        if constexpr(!std::is_trivially_destructible_v<T>)
         {
             address->~T();
         }

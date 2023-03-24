@@ -11,7 +11,6 @@ file(GLOB
         apps/main_rma_treiber_stack_simple_push_pop_task_app.cpp
         include/stack_tasks.h
 )
-
 add_executable(
         rma_treiber_stack_simple_push_pop_task_app
         ${RMA_TREIBER_STACK_SIMPLE_PUSH_POP_TASK_APP_SOURCES}
@@ -19,11 +18,34 @@ add_executable(
 target_link_libraries(
         rma_treiber_stack_simple_push_pop_task_app
         PRIVATE
-        rma_stack
+        sub::rma_stack
 )
 target_include_directories(
         rma_treiber_stack_simple_push_pop_task_app
         PRIVATE
-        .
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 install(TARGETS rma_treiber_stack_simple_push_pop_task_app DESTINATION bin/)
+
+
+file(GLOB
+        MEMORY_POOL_APP_SOURCES
+        apps/main_centralized_memory_pool_app.cpp
+        src/memory_pool_tasks.cpp
+        src/logging.cpp
+        )
+add_executable(
+        memory_pool_app
+        ${MEMORY_POOL_APP_SOURCES}
+)
+target_link_libraries(
+        memory_pool_app
+        PRIVATE
+        sub::memory_pool
+)
+target_include_directories(
+        memory_pool_app
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+install(TARGETS memory_pool_app DESTINATION bin/)
