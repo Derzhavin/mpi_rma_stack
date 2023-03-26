@@ -72,6 +72,5 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 
     SPDLOG_INFO("shutdown");
-    spdlog::shutdown();
     return returnCode;
 }
