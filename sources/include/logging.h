@@ -9,5 +9,5 @@
 
 std::string getLoggingFilename(int rank);
 
-constexpr inline std::string_view mainLoggerName{"MainLogger"};
+constexpr inline std::string_view defaultLoggerName{"DefaultLogger"};
 #endif //SOURCES_LOGGING_H

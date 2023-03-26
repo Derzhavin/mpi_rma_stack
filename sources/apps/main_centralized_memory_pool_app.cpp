@@ -21,7 +21,6 @@ int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
-    MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0 /* key */, MPI_INFO_NULL, &comm);
     auto returnCode{EXIT_SUCCESS};
 
     MPI_Aint memoryPoolSize{100};
@@ -39,21 +38,21 @@ int main(int argc, char *argv[])
             loggingFilename.data()
     );
     duplicatingFilterSink->add_sink(fileSink);
-    auto pDefaultLogger = std::make_shared<spdlog::logger>("DefaultLogger", duplicatingFilterSink);
+    auto pDefaultLogger = std::make_shared<spdlog::logger>(defaultLoggerName.data(), duplicatingFilterSink);
     spdlog::set_default_logger(pDefaultLogger);
     spdlog::set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
-    spdlog::set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+    spdlog::flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
 
     auto pCentralizedMemoryPoolLogger = std::make_shared<spdlog::logger>("CentralizedMemoryPoolLogger", duplicatingFilterSink);
     spdlog::register_logger(pCentralizedMemoryPoolLogger);
     pCentralizedMemoryPoolLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
-    pCentralizedMemoryPoolLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+    pCentralizedMemoryPoolLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
 
     try
     {
         CentralizedMemoryPool<int> memoryPool(comm, datatype, memoryPoolSize, std::move(pCentralizedMemoryPoolLogger));
         simpleMemoryAllocateAndDeallocateTask(memoryPool, comm, rank);
-        SPDLOG_INFO(R"(Finished 'simpleMemoryAllocateAndDeallocateTask')");
+        SPDLOG_INFO("finished 'simpleMemoryAllocateAndDeallocateTask'");
     }
     catch (custom_mpi_extensions::MpiException& ex)
     {

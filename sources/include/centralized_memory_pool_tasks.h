@@ -12,17 +12,18 @@
 template<typename T>
 void simpleMemoryAllocateAndDeallocateTask(CentralizedMemoryPool<T> &memoryPool, MPI_Comm comm, int rank)
 {
-    auto pMainLogger = spdlog::get(mainLoggerName.data());
+    constexpr size_t addressesNum = 3;
+    MPI_Aint addresses[addressesNum]{(MPI_Aint)MPI_BOTTOM};
 
-    MPI_Aint address{(MPI_Aint) MPI_BOTTOM};
-    std::string msg = "address - " + std::to_string(address);
-    SPDLOG_LOGGER_DEBUG(pMainLogger, msg);
-
-    for (int i = 0; i < 1; ++i)
+    for (auto& address: addresses)
     {
         address = memoryPool.allocate();
-        msg = "address - " + std::to_string(address);
-        SPDLOG_LOGGER_DEBUG(pMainLogger, msg);
+        SPDLOG_DEBUG("allocated memory at the address {}", address);
+    }
+    for (auto& address: addresses)
+    {
+        memoryPool.deallocate(address);
+        SPDLOG_DEBUG("deallocated memory at the address {}", address);
     }
 }
 #endif //SOURCES_CENTRALIZED_MEMORY_POOL_TASKS_H

@@ -9,8 +9,8 @@
 
 enum MemoryUsageMark: int
 {
-    Released,
-    Acquired
+    Released = 1,
+    Acquired = 2
 };
 
 #endif //SOURCES_MEMORY_POOL_H

@@ -6,5 +6,5 @@
 
 std::string getLoggingFilename(int rank)
 {
-    return "Process " + std::to_string(rank);
+    return "Process_" + std::to_string(rank) + ".log";
 }

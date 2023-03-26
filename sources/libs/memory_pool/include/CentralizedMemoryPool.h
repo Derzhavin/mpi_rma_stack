@@ -21,8 +21,8 @@ namespace custom_mpi = custom_mpi_extensions;
 template<typename T>
 class CentralizedMemoryPool
 {
-    typedef void (*MemoryUsageDeleter_t)(MemoryUsageMark*);
-    typedef void (*MemoryDeleter_t)(T*);
+    typedef std::function<void(MemoryUsageMark*)> MemoryUsageDeleter_t;
+    typedef std::function<void(T*)> MemoryDeleter_t;
 
 public:
     constexpr inline static int CENTRAL_RANK{0};
@@ -79,8 +79,14 @@ m_memoryUsageWinWrapper(MPI_INFO_NULL, t_comm)
 template<typename T>
 MPI_Aint CentralizedMemoryPool<T>::allocate()
 {
-    MPI_Aint elemMemoryAddress{(MPI_Aint)MPI_BOTTOM};
+    auto elemMemoryAddress{(MPI_Aint)MPI_BOTTOM};
+    auto memoryUsageAddress{(MPI_Aint)MPI_BOTTOM};
     auto win = m_memoryUsageWinWrapper.getMpiWin();
+
+    int elemSize{0};
+    MPI_Type_size(m_datatype, &elemSize);
+
+    constexpr auto memoryUsageMarkSize = static_cast<MPI_Aint>(sizeof(MemoryUsageMark));
 
     for (MPI_Aint disp = 0; disp < m_elemsNumber; ++disp)
     {
@@ -88,23 +94,30 @@ MPI_Aint CentralizedMemoryPool<T>::allocate()
         MemoryUsageMark newState{Acquired};
         MemoryUsageMark resState{Acquired};
 
-        auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp);
+        memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * memoryUsageMarkSize);
+
+        SPDLOG_LOGGER_TRACE(m_logger, "trying to acquire memory usage address {}", memoryUsageAddress);
 
         MPI_Win_lock_all(0, win);
         MPI_Compare_and_swap(&newState, &oldState, &resState, MPI_INT, CENTRAL_RANK, memoryUsageAddress, win);
+        MPI_Win_sync(win);
         MPI_Win_flush_all(win);
         MPI_Win_unlock_all(win);
 
-        SPDLOG_LOGGER_TRACE(m_logger, "acquired memory usage address '{}'", memoryUsageAddress);
-
         if (resState == MemoryUsageMark::Released)
         {
-            elemMemoryAddress = MPI_Aint_add(m_elemsBaseAddress, disp);
+            elemMemoryAddress = MPI_Aint_add(m_elemsBaseAddress, disp * elemSize);
             break;
+        }
+        else if (resState != MemoryUsageMark::Acquired)
+        {
+            SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage address mark {} to memory usage address {}", resState, memoryUsageAddress);
+            assert(resState == MemoryUsageMark::Acquired);
         }
     }
 
-    SPDLOG_LOGGER_TRACE(m_logger, "acquired element memory address '{}'", elemMemoryAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "acquired memory usage address {}", memoryUsageAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "acquired element memory address {}", elemMemoryAddress);
     return elemMemoryAddress;
 }
 
@@ -117,17 +130,28 @@ void CentralizedMemoryPool<T>::deallocate(MPI_Aint elemMemoryAddress)
     MemoryUsageMark newState{Released};
     MemoryUsageMark resState{Released};
 
-    auto disp = MPI_Aint_diff(m_elemsBaseAddress, elemMemoryAddress);
-    auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp);
+    int elemSize{0};
+    MPI_Type_size(m_datatype, &elemSize);
+
+    constexpr auto memoryUsageMarkSize = static_cast<MPI_Aint>(sizeof(MemoryUsageMark));
+    auto disp = MPI_Aint_diff(elemMemoryAddress, m_elemsBaseAddress) / elemSize;
+    auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * memoryUsageMarkSize);
+
+    SPDLOG_LOGGER_TRACE(m_logger, "trying to release memory usage address {}", memoryUsageAddress);
 
     MPI_Win_lock_all(0, win);
-    MPI_Compare_and_swap(&newState, &oldState, &resState, MPI_INT, CENTRAL_RANK, memoryUsageAddress, win);
+    MPI_Compare_and_swap(&newState, &oldState, &resState, m_datatype, CENTRAL_RANK, memoryUsageAddress, win);
     MPI_Win_flush_all(win);
     MPI_Win_unlock_all(win);
 
-    assert(resState == MemoryUsageMark::Acquired);
-    SPDLOG_LOGGER_TRACE(m_logger, "released memory usage address - {}", memoryUsageAddress);
-    SPDLOG_LOGGER_TRACE(m_logger, "released element memory address - {}", elemMemoryAddress);
+    if (resState != MemoryUsageMark::Acquired)
+    {
+        SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage address mark {} to memory usage address {}", resState, memoryUsageAddress);
+        assert(resState == MemoryUsageMark::Acquired);
+    }
+
+    SPDLOG_LOGGER_TRACE(m_logger, "released memory usage address {}", memoryUsageAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "released element memory address {}", elemMemoryAddress);
 }
 
 template<typename T>
@@ -180,16 +204,17 @@ void CentralizedMemoryPool<T>::initMemoryPool()
                 throw custom_mpi::MpiException("failed to allocate RMA memory", __FILE__, __func__, __LINE__,
                                                mpiStatus);
         }
-        m_pMemoryUsage = std::unique_ptr<MemoryUsageMark[], MemoryUsageDeleter_t>(pMemoryUsage, [] (MemoryUsageMark* p) {
+        m_pMemoryUsage = std::unique_ptr<MemoryUsageMark[], MemoryUsageDeleter_t>(pMemoryUsage, [logger=m_logger] (MemoryUsageMark* p) {
             MPI_Free_mem(p);
+            SPDLOG_LOGGER_TRACE(logger, "freed up memory usage marks' memory");
         });
         std::fill_n(m_pMemoryUsage.get(), m_elemsNumber, MemoryUsageMark::Released);
         {
-            auto mpiStatus = MPI_Win_attach(memoryUsageWin, pMemoryUsage, m_elemsNumber);
+            auto mpiStatus = MPI_Win_attach(memoryUsageWin, m_pMemoryUsage.get(), m_elemsNumber);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
         }
-        MPI_Get_address(pMemoryUsage, &m_memoryUsageBaseAddress);
+        MPI_Get_address(m_pMemoryUsage.get(), &m_memoryUsageBaseAddress);
 
         auto memoryWin = m_elemsWinWrapper.getMpiWin();
         T* pElems{nullptr};
@@ -200,22 +225,31 @@ void CentralizedMemoryPool<T>::initMemoryPool()
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to allocate RMA memory", __FILE__, __func__, __LINE__, mpiStatus);
         }
-        m_pMemory = std::unique_ptr<T[], MemoryDeleter_t>(pElems, [] (T* p) {
-            if constexpr(!std::is_trivially_destructible_v<T>)
-            {
-                p->~T();
-            }
+        m_pMemory = std::unique_ptr<T[], MemoryDeleter_t>(pElems, [logger=m_logger] (T* p) {
             MPI_Free_mem(p);
+            SPDLOG_LOGGER_TRACE(logger, "freed up elements' memory");
         });
         {
-            auto mpiStatus = MPI_Win_attach(memoryWin, pElems, elemSize * m_elemsNumber);
+            auto mpiStatus = MPI_Win_attach(memoryWin, m_pMemory.get(), elemSize * m_elemsNumber);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
         }
-        MPI_Get_address(pElems, &m_elemsBaseAddress);
+        MPI_Get_address(m_pMemory.get(), &m_elemsBaseAddress);
     }
-    MPI_Bcast(&m_elemsBaseAddress, 1, m_datatype, CENTRAL_RANK, m_comm);
-    MPI_Bcast(&m_memoryUsageBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+
+    {
+        auto mpiStatus = MPI_Bcast(&m_elemsBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        if (mpiStatus != MPI_SUCCESS)
+            throw custom_mpi::MpiException("failed to broadcast elements' base address", __FILE__, __func__ , __LINE__, mpiStatus);
+    }
+    {
+        auto mpiStatus = MPI_Bcast(&m_memoryUsageBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        if (mpiStatus != MPI_SUCCESS)
+            throw custom_mpi::MpiException("failed to broadcast base elements' memory usage address", __FILE__, __func__ , __LINE__, mpiStatus);
+    }
+
+    SPDLOG_LOGGER_TRACE(m_logger, "elements' base address {}", m_elemsBaseAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "elements' base memory usage address {}", m_memoryUsageBaseAddress);
 }
 
 #endif //RMA_LIST_SKETCH_MEMORYPOOL_H
