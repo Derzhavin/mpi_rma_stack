@@ -24,8 +24,10 @@ class CentralizedMemoryPool
     typedef std::function<void(MemoryUsageMark*)> MemoryUsageDeleter_t;
     typedef std::function<void(T*)> MemoryDeleter_t;
 
-public:
+    static constexpr auto m_sMemoryUsageMarkSize = static_cast<MPI_Aint>(sizeof(MemoryUsageMark));
+
     constexpr inline static int CENTRAL_RANK{0};
+public:
 
     CentralizedMemoryPool(MPI_Comm t_comm, MPI_Datatype t_datatype, MPI_Aint t_elemsNumber, std::shared_ptr<spdlog::logger> t_logger);
     ~CentralizedMemoryPool() = default;
@@ -49,6 +51,7 @@ private:
     std::unique_ptr<MemoryUsageMark[], MemoryUsageDeleter_t> m_pMemoryUsage{nullptr, nullptr};
     MPI_Comm m_comm{MPI_COMM_NULL};
     int m_rank{-1};
+    int m_mpiElemSize{0};
     MPI_Aint m_elemsNumber{0};
     MPI_Datatype m_datatype{MPI_DATATYPE_NULL};
     MPI_Aint m_elemsBaseAddress{(MPI_Aint) MPI_BOTTOM};
@@ -83,30 +86,24 @@ MPI_Aint CentralizedMemoryPool<T>::allocate()
     auto memoryUsageAddress{(MPI_Aint)MPI_BOTTOM};
     auto win = m_memoryUsageWinWrapper.getMpiWin();
 
-    int elemSize{0};
-    MPI_Type_size(m_datatype, &elemSize);
-
-    constexpr auto memoryUsageMarkSize = static_cast<MPI_Aint>(sizeof(MemoryUsageMark));
-
     for (MPI_Aint disp = 0; disp < m_elemsNumber; ++disp)
     {
         MemoryUsageMark oldState{Released};
         MemoryUsageMark newState{Acquired};
         MemoryUsageMark resState{Acquired};
 
-        memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * memoryUsageMarkSize);
+        memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * m_sMemoryUsageMarkSize);
 
         SPDLOG_LOGGER_TRACE(m_logger, "trying to acquire memory usage address {}", memoryUsageAddress);
 
         MPI_Win_lock_all(0, win);
         MPI_Compare_and_swap(&newState, &oldState, &resState, MPI_INT, CENTRAL_RANK, memoryUsageAddress, win);
-        MPI_Win_sync(win);
         MPI_Win_flush_all(win);
         MPI_Win_unlock_all(win);
 
         if (resState == MemoryUsageMark::Released)
         {
-            elemMemoryAddress = MPI_Aint_add(m_elemsBaseAddress, disp * elemSize);
+            elemMemoryAddress = MPI_Aint_add(m_elemsBaseAddress, disp * m_mpiElemSize);
             break;
         }
         else if (resState != MemoryUsageMark::Acquired)
@@ -130,12 +127,8 @@ void CentralizedMemoryPool<T>::deallocate(MPI_Aint elemMemoryAddress)
     MemoryUsageMark newState{Released};
     MemoryUsageMark resState{Released};
 
-    int elemSize{0};
-    MPI_Type_size(m_datatype, &elemSize);
-
-    constexpr auto memoryUsageMarkSize = static_cast<MPI_Aint>(sizeof(MemoryUsageMark));
-    auto disp = MPI_Aint_diff(elemMemoryAddress, m_elemsBaseAddress) / elemSize;
-    auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * memoryUsageMarkSize);
+    auto disp = MPI_Aint_diff(elemMemoryAddress, m_elemsBaseAddress) / m_mpiElemSize;
+    auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * m_sMemoryUsageMarkSize);
 
     SPDLOG_LOGGER_TRACE(m_logger, "trying to release memory usage address {}", memoryUsageAddress);
 
@@ -218,10 +211,10 @@ void CentralizedMemoryPool<T>::initMemoryPool()
 
         auto memoryWin = m_elemsWinWrapper.getMpiWin();
         T* pElems{nullptr};
-        int elemSize{0};
-        MPI_Type_size(m_datatype, &elemSize);
+
+        MPI_Type_size(m_datatype, &m_mpiElemSize);
         {
-            auto mpiStatus = MPI_Alloc_mem(elemSize * m_elemsNumber, MPI_INFO_NULL, &pElems);
+            auto mpiStatus = MPI_Alloc_mem(m_mpiElemSize * m_elemsNumber, MPI_INFO_NULL, &pElems);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to allocate RMA memory", __FILE__, __func__, __LINE__, mpiStatus);
         }
@@ -230,7 +223,7 @@ void CentralizedMemoryPool<T>::initMemoryPool()
             SPDLOG_LOGGER_TRACE(logger, "freed up elements' memory");
         });
         {
-            auto mpiStatus = MPI_Win_attach(memoryWin, m_pMemory.get(), elemSize * m_elemsNumber);
+            auto mpiStatus = MPI_Win_attach(memoryWin, m_pMemory.get(), m_mpiElemSize * m_elemsNumber);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
         }
@@ -241,6 +234,11 @@ void CentralizedMemoryPool<T>::initMemoryPool()
         auto mpiStatus = MPI_Bcast(&m_elemsBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi::MpiException("failed to broadcast elements' base address", __FILE__, __func__ , __LINE__, mpiStatus);
+    }
+    {
+        auto mpiStatus = MPI_Bcast(&m_mpiElemSize, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        if (mpiStatus != MPI_SUCCESS)
+            throw custom_mpi::MpiException("failed to broadcast element size", __FILE__, __func__ , __LINE__, mpiStatus);
     }
     {
         auto mpiStatus = MPI_Bcast(&m_memoryUsageBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
