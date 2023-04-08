@@ -11,7 +11,7 @@ add_library(sub::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_link_libraries(
         ${PROJECT_NAME}
-        PUBLIC sub::stack_interface sub::custom_mpi_extensions
+        PUBLIC sub::stack_interface sub::custom_mpi_extensions sub::memory_pool
         PRIVATE ${MPI_C_LIBRARIES}
 )
 target_include_directories(

@@ -29,27 +29,29 @@ class CentralizedMemoryPool
     constexpr inline static int CENTRAL_RANK{0};
 public:
 
-    CentralizedMemoryPool(MPI_Comm t_comm, MPI_Datatype t_datatype, MPI_Aint t_elemsNumber, std::shared_ptr<spdlog::logger> t_logger);
+    CentralizedMemoryPool(MPI_Comm comm, MPI_Datatype t_datatype, MPI_Aint t_elemsNumber, std::shared_ptr<spdlog::logger> t_logger);
     ~CentralizedMemoryPool() = default;
     CentralizedMemoryPool(CentralizedMemoryPool&) = delete;
     CentralizedMemoryPool(CentralizedMemoryPool&& t_other) noexcept;
     CentralizedMemoryPool& operator=(CentralizedMemoryPool&) = delete;
     CentralizedMemoryPool& operator=(CentralizedMemoryPool&& t_other) noexcept;
 
-    [[nodiscard]] bool isCentralRank() const;
-
     MPI_Aint allocate();
     void deallocate(MPI_Aint elemMemoryAddress);
 
+    [[nodiscard]] const custom_mpi::MpiWinWrapper &getElemsWinWrapper() const;
+    [[nodiscard]] MPI_Datatype getDatatype() const;
+    [[nodiscard]] int getMpiDatatypeSize() const;
+
 private:
-    void initMemoryPool();
+    void initMemoryPool(MPI_Comm comm);
+    [[nodiscard]] bool isCentralRank() const;
 
 private:
     std::shared_ptr<spdlog::logger> m_logger;
 
     std::unique_ptr<T[], MemoryDeleter_t> m_pMemory{nullptr, nullptr};
     std::unique_ptr<MemoryUsageMark[], MemoryUsageDeleter_t> m_pMemoryUsage{nullptr, nullptr};
-    MPI_Comm m_comm{MPI_COMM_NULL};
     int m_rank{-1};
     int m_mpiElemSize{0};
     MPI_Aint m_elemsNumber{0};
@@ -61,22 +63,21 @@ private:
 };
 
 template<typename T>
-CentralizedMemoryPool<T>::CentralizedMemoryPool(MPI_Comm t_comm, MPI_Datatype t_datatype, MPI_Aint t_elemsNumber, std::shared_ptr<spdlog::logger> t_logger)
+CentralizedMemoryPool<T>::CentralizedMemoryPool(MPI_Comm comm, MPI_Datatype t_datatype, MPI_Aint t_elemsNumber, std::shared_ptr<spdlog::logger> t_logger)
 :
 m_logger(std::move(t_logger)),
-m_comm(t_comm),
 m_datatype(t_datatype),
 m_elemsNumber(t_elemsNumber),
-m_elemsWinWrapper(MPI_INFO_NULL, t_comm),
-m_memoryUsageWinWrapper(MPI_INFO_NULL, t_comm)
+m_elemsWinWrapper(MPI_INFO_NULL, comm),
+m_memoryUsageWinWrapper(MPI_INFO_NULL, comm)
 {
     {
-        auto mpiStatus = MPI_Comm_rank(m_comm, &m_rank);
+        auto mpiStatus = MPI_Comm_rank(comm, &m_rank);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi_extensions::MpiException("failed to get rank", __FILE__, __func__, __LINE__, mpiStatus);
     }
 
-    initMemoryPool();
+    initMemoryPool(0);
 }
 
 template<typename T>
@@ -94,7 +95,7 @@ MPI_Aint CentralizedMemoryPool<T>::allocate()
 
         memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * m_sMemoryUsageMarkSize);
 
-        SPDLOG_LOGGER_TRACE(m_logger, "trying to acquire memory usage address {}", memoryUsageAddress);
+        SPDLOG_LOGGER_TRACE(m_logger, "trying to acquire memory usage m_address {}", memoryUsageAddress);
 
         MPI_Win_lock_all(0, win);
         MPI_Compare_and_swap(&newState, &oldState, &resState, MPI_INT, CENTRAL_RANK, memoryUsageAddress, win);
@@ -108,13 +109,13 @@ MPI_Aint CentralizedMemoryPool<T>::allocate()
         }
         else if (resState != MemoryUsageMark::Acquired)
         {
-            SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage address mark {} to memory usage address {}", resState, memoryUsageAddress);
+            SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage m_address mark {} to memory usage m_address {}", resState, memoryUsageAddress);
             assert(resState == MemoryUsageMark::Acquired);
         }
     }
 
-    SPDLOG_LOGGER_TRACE(m_logger, "acquired memory usage address {}", memoryUsageAddress);
-    SPDLOG_LOGGER_TRACE(m_logger, "acquired element memory address {}", elemMemoryAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "acquired memory usage m_address {}", memoryUsageAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "acquired element memory m_address {}", elemMemoryAddress);
     return elemMemoryAddress;
 }
 
@@ -130,7 +131,7 @@ void CentralizedMemoryPool<T>::deallocate(MPI_Aint elemMemoryAddress)
     auto disp = MPI_Aint_diff(elemMemoryAddress, m_elemsBaseAddress) / m_mpiElemSize;
     auto memoryUsageAddress = MPI_Aint_add(m_memoryUsageBaseAddress, disp * m_sMemoryUsageMarkSize);
 
-    SPDLOG_LOGGER_TRACE(m_logger, "trying to release memory usage address {}", memoryUsageAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "trying to release memory usage m_address {}", memoryUsageAddress);
 
     MPI_Win_lock_all(0, win);
     MPI_Compare_and_swap(&newState, &oldState, &resState, m_datatype, CENTRAL_RANK, memoryUsageAddress, win);
@@ -139,12 +140,12 @@ void CentralizedMemoryPool<T>::deallocate(MPI_Aint elemMemoryAddress)
 
     if (resState != MemoryUsageMark::Acquired)
     {
-        SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage address mark {} to memory usage address {}", resState, memoryUsageAddress);
+        SPDLOG_LOGGER_TRACE(m_logger, "invalid memory usage m_address mark {} to memory usage m_address {}", resState, memoryUsageAddress);
         assert(resState == MemoryUsageMark::Acquired);
     }
 
-    SPDLOG_LOGGER_TRACE(m_logger, "released memory usage address {}", memoryUsageAddress);
-    SPDLOG_LOGGER_TRACE(m_logger, "released element memory address {}", elemMemoryAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "released memory usage m_address {}", memoryUsageAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "released element memory m_address {}", elemMemoryAddress);
 }
 
 template<typename T>
@@ -158,7 +159,6 @@ CentralizedMemoryPool<T>::CentralizedMemoryPool(CentralizedMemoryPool &&t_other)
 :
 m_pMemory(std::move(t_other.m_pMemory)),
 m_pMemoryUsage(std::move(t_other.m_pMemoryUsage)),
-m_comm(t_other.m_comm),
 m_rank(std::exchange(t_other.m_rank, -1)),
 m_elemsNumber(std::exchange(t_other.m_elemsNumber, 0)),
 m_datatype(t_other.m_datatype),
@@ -174,7 +174,6 @@ CentralizedMemoryPool<T> &CentralizedMemoryPool<T>::operator=(CentralizedMemoryP
     if (&t_other != this)
     {
         m_pMemory = std::exchange(t_other.m_pMemory, nullptr);
-        m_comm = t_other.m_comm;
         m_rank = std::exchange(t_other.m_rank, -1);
         m_elemsNumber = std::exchange(t_other.m_elemsNumber, 0);
         m_datatype = t_other.m_datatype;
@@ -185,7 +184,7 @@ CentralizedMemoryPool<T> &CentralizedMemoryPool<T>::operator=(CentralizedMemoryP
 }
 
 template<typename T>
-void CentralizedMemoryPool<T>::initMemoryPool()
+void CentralizedMemoryPool<T>::initMemoryPool(MPI_Comm comm)
 {
     if (isCentralRank())
     {
@@ -231,23 +230,40 @@ void CentralizedMemoryPool<T>::initMemoryPool()
     }
 
     {
-        auto mpiStatus = MPI_Bcast(&m_elemsBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        auto mpiStatus = MPI_Bcast(&m_elemsBaseAddress, 1, MPI_AINT, CENTRAL_RANK, comm);
         if (mpiStatus != MPI_SUCCESS)
-            throw custom_mpi::MpiException("failed to broadcast elements' base address", __FILE__, __func__ , __LINE__, mpiStatus);
+            throw custom_mpi::MpiException("failed to broadcast elements' base m_address", __FILE__, __func__ , __LINE__, mpiStatus);
     }
     {
-        auto mpiStatus = MPI_Bcast(&m_mpiElemSize, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        auto mpiStatus = MPI_Bcast(&m_mpiElemSize, 1, MPI_AINT, CENTRAL_RANK, comm);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi::MpiException("failed to broadcast element size", __FILE__, __func__ , __LINE__, mpiStatus);
     }
     {
-        auto mpiStatus = MPI_Bcast(&m_memoryUsageBaseAddress, 1, MPI_AINT, CENTRAL_RANK, m_comm);
+        auto mpiStatus = MPI_Bcast(&m_memoryUsageBaseAddress, 1, MPI_AINT, CENTRAL_RANK, comm);
         if (mpiStatus != MPI_SUCCESS)
-            throw custom_mpi::MpiException("failed to broadcast base elements' memory usage address", __FILE__, __func__ , __LINE__, mpiStatus);
+            throw custom_mpi::MpiException("failed to broadcast base elements' memory usage m_address", __FILE__, __func__ , __LINE__, mpiStatus);
     }
 
-    SPDLOG_LOGGER_TRACE(m_logger, "elements' base address {}", m_elemsBaseAddress);
-    SPDLOG_LOGGER_TRACE(m_logger, "elements' base memory usage address {}", m_memoryUsageBaseAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "elements' base m_address {}", m_elemsBaseAddress);
+    SPDLOG_LOGGER_TRACE(m_logger, "elements' base memory usage m_address {}", m_memoryUsageBaseAddress);
+}
+
+template<typename T>
+const custom_mpi::MpiWinWrapper &CentralizedMemoryPool<T>::getElemsWinWrapper() const 
+{
+    return m_elemsWinWrapper;
+}
+
+template<typename T>
+MPI_Datatype CentralizedMemoryPool<T>::getDatatype() const {
+    return m_datatype;
+}
+
+template<typename T>
+int CentralizedMemoryPool<T>::getMpiDatatypeSize() const
+{
+    return m_mpiElemSize;
 }
 
 #endif //RMA_LIST_SKETCH_MEMORYPOOL_H

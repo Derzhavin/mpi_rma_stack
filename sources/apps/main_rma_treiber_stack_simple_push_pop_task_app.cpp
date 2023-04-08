@@ -22,7 +22,8 @@ int main(int argc, char *argv[])
     const auto freeNodesLimit{10};
     try
     {
-        rma_stack::RmaTreiberCentralStack<int> rmaTreiberStack(comm, MPI_INT, minBackoffDelay, maxBackoffDelay, freeNodesLimit);
+        rma_stack::RmaTreiberCentralStack<int> rmaTreiberStack(comm, MPI_INT, minBackoffDelay, maxBackoffDelay,
+                                                               freeNodesLimit, <#initializer#>);
         runSimplePushPopTask(rmaTreiberStack);
     }
     catch (custom_mpi_extensions::MpiException& ex)

@@ -6,10 +6,10 @@
 
 namespace rma_stack
 {
-    CountedNode::CountedNode(MPI_Aint t_nodeDisp)
+    CountedNode::CountedNode(MPI_Aint t_address)
     :
-    nodeDisp(t_nodeDisp),
-    externalCounter(0)
+            m_address(t_address),
+            m_externalCounter(0)
     {
 
     }
@@ -17,5 +17,25 @@ namespace rma_stack
     CountedNode::CountedNode(): CountedNode((MPI_Aint)MPI_BOTTOM)
     {
 
+    }
+
+    void CountedNode::incExternalCounter()
+    {
+        m_externalCounter += 1;
+    }
+
+    MPI_Aint CountedNode::getAddress() const
+    {
+        return m_address;
+    }
+
+    void CountedNode::setAddress(MPI_Aint t_address)
+    {
+        CountedNode::m_address = t_address;
+    }
+
+    int CountedNode::getExternalCounter() const
+    {
+        return m_externalCounter;
     }
 } // rma_stack

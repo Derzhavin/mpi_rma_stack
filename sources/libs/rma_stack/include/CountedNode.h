@@ -12,11 +12,18 @@ namespace rma_stack
     class CountedNode
     {
     public:
-        explicit CountedNode(MPI_Aint t_nodeDisp);
+        explicit CountedNode(MPI_Aint t_address);
         explicit CountedNode();
 
-        int externalCounter;
-        MPI_Aint nodeDisp;
+        [[nodiscard]] MPI_Aint getAddress() const;
+
+        [[nodiscard]] int getExternalCounter() const;
+        void setAddress(MPI_Aint t_address);
+
+        void incExternalCounter();
+    private:
+        int m_externalCounter;
+        MPI_Aint m_address;
     };
 } // rma_stack
 

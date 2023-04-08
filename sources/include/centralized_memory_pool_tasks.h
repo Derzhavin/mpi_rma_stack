@@ -18,12 +18,12 @@ void simpleMemoryAllocateAndDeallocateTask(CentralizedMemoryPool<T> &memoryPool,
     for (auto& address: addresses)
     {
         address = memoryPool.allocate();
-        SPDLOG_DEBUG("allocated memory at the address {}", address);
+        SPDLOG_DEBUG("allocated memory at the m_address {}", address);
     }
     for (auto& address: addresses)
     {
         memoryPool.deallocate(address);
-        SPDLOG_DEBUG("deallocated memory at the address {}", address);
+        SPDLOG_DEBUG("deallocated memory at the m_address {}", address);
     }
 }
 #endif //SOURCES_CENTRALIZED_MEMORY_POOL_TASKS_H
