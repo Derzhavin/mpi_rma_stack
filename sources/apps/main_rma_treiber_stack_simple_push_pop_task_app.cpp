@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
                 duplicatingFilterSink
         );
         runSimplePushPopTask(rmaTreiberStack);
+
+        rma_stack::RmaCentralStackFabric::getInstance().finalize();
     }
     catch (custom_mpi_extensions::MpiException& ex)
     {
