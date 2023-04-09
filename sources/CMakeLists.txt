@@ -9,7 +9,7 @@ add_subdirectory(libs)
 file(GLOB
         RMA_TREIBER_STACK_SIMPLE_PUSH_POP_TASK_APP_SOURCES
         apps/main_rma_treiber_stack_simple_push_pop_task_app.cpp
-        include/stack_tasks.h
+        src/logging.cpp
 )
 add_executable(
         rma_treiber_stack_simple_push_pop_task_app
@@ -31,7 +31,7 @@ install(TARGETS rma_treiber_stack_simple_push_pop_task_app DESTINATION bin/)
 file(GLOB
         MEMORY_POOL_APP_SOURCES
         apps/main_centralized_memory_pool_app.cpp
-        src/memory_pool_tasks.cpp
+        src/centralized_memory_pool_tasks.cpp
         src/logging.cpp
         )
 add_executable(

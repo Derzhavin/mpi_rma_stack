@@ -9,21 +9,6 @@
 
 #include "CentralizedMemoryPool.h"
 
-template<typename T>
-void simpleMemoryAllocateAndDeallocateTask(CentralizedMemoryPool<T> &memoryPool, MPI_Comm comm, int rank)
-{
-    constexpr size_t addressesNum = 3;
-    MPI_Aint addresses[addressesNum]{(MPI_Aint)MPI_BOTTOM};
+void simpleMemoryAllocateAndDeallocateTask(CentralizedMemoryPool &memoryPool, MPI_Comm comm, int rank);
 
-    for (auto& address: addresses)
-    {
-        address = memoryPool.allocate();
-        SPDLOG_DEBUG("allocated memory at the m_address {}", address);
-    }
-    for (auto& address: addresses)
-    {
-        memoryPool.deallocate(address);
-        SPDLOG_DEBUG("deallocated memory at the m_address {}", address);
-    }
-}
 #endif //SOURCES_CENTRALIZED_MEMORY_POOL_TASKS_H

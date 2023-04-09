@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Info info = MPI_INFO_NULL;
     auto returnCode{EXIT_SUCCESS};
 
     MPI_Aint memoryPoolSize{100};
@@ -50,7 +51,8 @@ int main(int argc, char *argv[])
 
     try
     {
-        CentralizedMemoryPool<int> memoryPool(comm, datatype, memoryPoolSize, std::move(pCentralizedMemoryPoolLogger));
+        CentralizedMemoryPool memoryPool(comm, info, datatype, memoryPoolSize,
+                                         std::move(pCentralizedMemoryPoolLogger));
         simpleMemoryAllocateAndDeallocateTask(memoryPool, comm, rank);
         SPDLOG_INFO("finished 'simpleMemoryAllocateAndDeallocateTask'");
     }
