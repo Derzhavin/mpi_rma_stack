@@ -2,7 +2,7 @@
 // Created by denis on 19.02.23.
 //
 
-#ifndef SOURCES_COUNTEDNODE_H
+#ifndef SOURCES_COUNTEDNODEPTR_H
 #define SOURCES_COUNTEDNODE_H
 
 #include <mpi.h>
@@ -17,4 +17,4 @@ namespace rma_stack
 
 } // rma_stack
 
-#endif //SOURCES_COUNTEDNODE_H
+#endif //SOURCES_COUNTEDNODEPTR_H

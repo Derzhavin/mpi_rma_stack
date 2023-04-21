@@ -230,7 +230,7 @@ namespace rma_stack
     {
         const auto newNodeAddress = m_elemsPool.allocate();
 //        CountedNode_t newNode(newNodeAddress);
-//        newNode.incExternalCounter();
+//        newNode.incInternalCounter();
 
         auto& win = m_elemsPool.getElemsWin();
         MPI_Win_lock_all(0, win);
