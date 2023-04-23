@@ -32,21 +32,19 @@ namespace rma_stack::ref_counting
         private:
             [[nodiscard]] bool isCentralRank() const;
             void allocateProprietaryData(MPI_Comm comm);
-            void increaseHeadCount(CountedNodePtr& oldCountedNode);
-            [[nodiscard]] DataAddress acquireFreeAddress(uint64_t rank) const;
-
+            void increaseHeadCount(CountedNodePtr& oldCounter);
+            [[nodiscard]] DataAddress acquireNode(uint64_t rank) const;
+            void releaseNode(DataAddress nodeAddress) const;
+            void initStackWithDummy();
         private:
             size_t m_elemsUpLimit{0};
             int m_rank{-1};
 
-            MPI_Win m_headMpiWin{MPI_WIN_NULL};
-            DataAddress m_headCounterNodePtrAddress{.offset = 0, .rank = CountedNodePtrDummyRank};
+            MPI_Win m_headWin{MPI_WIN_NULL};
+            CountedNodePtr* m_pHeadCountedNodePtr{nullptr};
+            DataAddress m_headAddress{.offset = 0, .rank = CountedNodePtrDummyRank};
 
-            MPI_Win m_countedNodePtrMpiWin{MPI_WIN_NULL};
-            CountedNodePtr* m_pCountedNodePtrArr{nullptr};
-            MPI_Aint m_countedNodePtrArrBaseAddress{(MPI_Aint) MPI_BOTTOM};
-
-            MPI_Win m_nodeMpiWin{MPI_WIN_NULL};
+            MPI_Win m_nodeWin{MPI_WIN_NULL};
             Node* m_pNodeArr{nullptr};
             MPI_Aint m_nodeArrBaseAddress{(MPI_Aint) MPI_BOTTOM};
 

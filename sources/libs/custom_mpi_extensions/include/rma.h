@@ -54,5 +54,6 @@ namespace custom_mpi_extensions
         }
         MPI_Free_mem(static_cast<void*>(address));
     }
+
 }
 #endif //SOURCES_RMA_H

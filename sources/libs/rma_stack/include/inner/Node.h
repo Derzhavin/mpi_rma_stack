@@ -25,8 +25,8 @@ namespace rma_stack::ref_counting
     private:
         uint64_t m_offset               : OffsetBitsLimit;
         uint64_t m_rank                 : RankBitsLimit;
-        uint64_t m_bInternalCounterNeg  : 1;
-        uint64_t m_internalCounter      : InternalCounterBitsLimit;
+        uint64_t reserved              : 64 - OffsetBitsLimit - RankBitsLimit;
+        int64_t m_internalCounter;
     };
 } // rma_stack
 

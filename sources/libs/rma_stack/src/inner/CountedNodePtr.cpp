@@ -3,6 +3,7 @@
 //
 
 #include <mpi.h>
+#include <cmath>
 
 #include "inner/CountedNodePtr.h"
 
@@ -95,6 +96,30 @@ namespace rma_stack::ref_counting
             return false;
 
         m_offset = t_offset;
+        return true;
+    }
+
+    bool operator==(CountedNodePtr& lhs, CountedNodePtr& rhs)
+    {
+        return lhs.m_rank == rhs.m_rank && lhs.m_offset == rhs.m_offset;
+    }
+
+    bool operator!=(CountedNodePtr &lhs, CountedNodePtr &rhs) {
+        return !(lhs == rhs);
+    }
+
+    bool CountedNodePtr::setExternalCounter(int16_t t_externalCounter)
+    {
+        auto absValue = std::abs(t_externalCounter);
+
+        if (absValue + 1 > CountedNodeUpLimit)
+            return false;
+
+        m_externalCounter = absValue;
+
+        if (t_externalCounter < 0)
+            m_bExternalCounterNeg = 1;
+
         return true;
     }
 } // rma_stack

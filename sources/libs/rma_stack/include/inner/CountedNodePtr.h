@@ -17,10 +17,11 @@ namespace rma_stack::ref_counting
         CountedNodePtr();
 
         [[nodiscard]] int64_t getExternalCounter() const;
+        bool setExternalCounter(int16_t t_externalCounter);
         [[nodiscard]] int64_t getOffset() const;
         bool setOffset(uint64_t t_offset);
-        [[nodiscard]] uint64_t getRank() const;
         bool setRank(uint64_t t_rank);
+        [[nodiscard]] uint64_t getRank() const;
         bool incExternalCounter();
         bool decExternalCounter();
         [[nodiscard]] bool isDummy() const;
@@ -29,6 +30,9 @@ namespace rma_stack::ref_counting
         uint64_t m_rank                 : RankBitsLimit;
         uint64_t m_bExternalCounterNeg  : 1 ;
         uint64_t m_externalCounter      : ExternalCounterBitsLimit;
+
+        friend bool operator==(CountedNodePtr& lhs, CountedNodePtr& rhs);
+        friend bool operator!=(CountedNodePtr& lhs, CountedNodePtr& rhs);
     };
 
 } // rma_stack
