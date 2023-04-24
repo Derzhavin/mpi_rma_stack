@@ -175,9 +175,14 @@ namespace rma_stack::ref_counting
 
             if (resNode == oldHead)
             {
-                DataAddress internalCounterAddress = {
-                        .offset = static_cast<uint64_t>(newNode.getOffset()) + 1,
+                DataAddress nodeAddress = {
+                        .offset = static_cast<uint64_t>(newNode.getOffset()),
                         .rank = newNode.getRank()
+                };
+
+                DataAddress internalCounterAddress = {
+                        .offset = nodeAddress.offset + 1,
+                        .rank = nodeAddress.rank
                 };
                 int64_t const countIncrease = oldHead.getExternalCounter() - 2;
                 int64_t resultInternalCount{0};
@@ -193,11 +198,35 @@ namespace rma_stack::ref_counting
 
                 if (resultInternalCount == -countIncrease)
                 {
-
+                    releaseNode(nodeAddress);
                 }
             }
+            DataAddress nodeAddress = {
+                    .offset = static_cast<uint64_t>(oldHead.getOffset()),
+                    .rank = oldHead.getRank()
+            };
+
+            DataAddress internalCounterAddress = {
+                    .offset = nodeAddress.offset + 1,
+                    .rank = nodeAddress.rank
+            };
+            int64_t const countIncrease{-1};
+            int64_t resultInternalCount{0};
+            MPI_Fetch_and_op(
+                    &countIncrease,
+                    &resultInternalCount,
+                    MPI_INT64_T,
+                    internalCounterAddress.rank,
+                    internalCounterAddress.offset,
+                    MPI_SUM,
+                    m_nodeWin
+            );
+
+            if (resultInternalCount == 1)
+            {
+                releaseNode(nodeAddress);
+            }
         }
-        return DataAddress();
     }
 
     void InnerStack::increaseHeadCount(CountedNodePtr &oldCounter)
