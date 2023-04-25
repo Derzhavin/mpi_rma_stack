@@ -4,7 +4,6 @@
 
 #include "inner/InnerStack.h"
 #include "MpiException.h"
-#include "rma.h"
 
 namespace rma_stack::ref_counting
 {
@@ -269,12 +268,8 @@ namespace rma_stack::ref_counting
         );
     }
 
-    InnerStack::InnerStack(
-            MPI_Comm comm,
-            MPI_Info info,
-            size_t t_elemsUpLimit,
-            std::shared_ptr<spdlog::logger> t_logger
-    )
+    InnerStack::InnerStack(MPI_Comm comm, MPI_Info info, size_t t_elemsUpLimit,
+                           std::shared_ptr<spdlog::logger> t_logger)
     :
     m_elemsUpLimit(t_elemsUpLimit),
     m_logger(std::move(t_logger))
@@ -400,5 +395,10 @@ namespace rma_stack::ref_counting
                 m_nodeWin
         );
         MPI_Win_unlock_all(m_nodeWin);
+    }
+
+    size_t InnerStack::getElemsUpLimit() const
+    {
+        return m_elemsUpLimit;
     }
 } // ref_counting

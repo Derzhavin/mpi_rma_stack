@@ -27,25 +27,24 @@ target_include_directories(
 )
 install(TARGETS rma_treiber_stack_simple_push_pop_task_app DESTINATION bin/)
 
-
 file(GLOB
-        MEMORY_POOL_APP_SOURCES
-        apps/main_centralized_memory_pool_app.cpp
-        src/centralized_memory_pool_tasks.cpp
+        RMA_INNER_STACK_SIMPLE_PUSH_POP_TASK_APP_SOURCES
+        apps/main_rma_inner_stack_simple_push_pop_task_app.cpp
+        src/stack_tasks.cpp
         src/logging.cpp
         )
 add_executable(
-        memory_pool_app
-        ${MEMORY_POOL_APP_SOURCES}
+        rma_inner_stack_simple_push_pop_task_app
+        ${RMA_INNER_STACK_SIMPLE_PUSH_POP_TASK_APP_SOURCES}
 )
 target_link_libraries(
-        memory_pool_app
+        rma_inner_stack_simple_push_pop_task_app
         PRIVATE
-        sub::memory_pool
+        sub::rma_stack
 )
 target_include_directories(
-        memory_pool_app
+        rma_inner_stack_simple_push_pop_task_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
-install(TARGETS memory_pool_app DESTINATION bin/)
+install(TARGETS rma_inner_stack_simple_push_pop_task_app DESTINATION bin/)

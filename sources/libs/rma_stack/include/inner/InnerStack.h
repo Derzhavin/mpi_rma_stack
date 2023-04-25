@@ -38,6 +38,10 @@ namespace rma_stack::ref_counting
             void initStackWithDummy();
         private:
             size_t m_elemsUpLimit{0};
+        public:
+            [[nodiscard]] size_t getElemsUpLimit() const;
+
+        private:
             int m_rank{-1};
 
             MPI_Win m_headWin{MPI_WIN_NULL};
