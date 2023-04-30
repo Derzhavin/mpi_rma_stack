@@ -17,7 +17,7 @@ namespace rma_stack::ref_counting
         CountedNodePtr();
 
         [[nodiscard]] int64_t getExternalCounter() const;
-        bool setExternalCounter(int16_t t_externalCounter);
+        bool setExternalCounter(int64_t t_externalCounter);
         [[nodiscard]] int64_t getOffset() const;
         bool setOffset(uint64_t t_offset);
         bool setRank(uint64_t t_rank);

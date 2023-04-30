@@ -6,6 +6,7 @@
 #define SOURCES_NODE_H
 
 #include "ref_counting.h"
+#include "CountedNodePtr.h"
 
 #include <cstdint>
 
@@ -16,13 +17,12 @@ namespace rma_stack::ref_counting
     public:
         Node();
         [[nodiscard]] int64_t getInternalCounter() const;
-        [[nodiscard]] int64_t getOffset() const;
+        [[nodiscard]] uint64_t getOffset() const;
         [[nodiscard]] uint64_t getRank() const;
-        void setAcquired();
-        void resetAcquired();
         bool incInternalCounter();
         bool decInternalCounter();
         [[nodiscard]] bool isDummy() const;
+        [[nodiscard]] const CountedNodePtr &getCountedNodePtr() const;
 
     private:
         // First 8 bytes.
@@ -37,8 +37,6 @@ namespace rma_stack::ref_counting
 
         // Third 8 bytes.
         CountedNodePtr m_countedNodePtr;
-    public:
-        const CountedNodePtr &getCountedNodePtr() const;
     };
 } // rma_stack
 

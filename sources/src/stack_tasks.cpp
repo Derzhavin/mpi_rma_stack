@@ -13,13 +13,18 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
 
     for (auto& dataAddress: pushedAddresses)
     {
-        dataAddress = stack.push(rank);
-        SPDLOG_DEBUG("received address by 'push' {}", address);
+        stack.push([&dataAddress](const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
+            dataAddress = t_dataAddress;
+        });
+        SPDLOG_DEBUG("received address by 'push' {}", dataAddress);
     }
 
     for (int i = 0; i < sizeof(pushedAddresses); ++i)
     {
-        auto address = stack.popHalf();
-        SPDLOG_DEBUG("brought back address by 'popHalf' {}", address);
+        rma_stack::ref_counting::GlobalAddress dataAddress{.rank = rma_stack::ref_counting::DummyRank};
+        stack.pop([&dataAddress] (const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
+            dataAddress = t_dataAddress;
+        });
+        SPDLOG_DEBUG("brought back address by 'pop' {}", dataAddress);
     }
 }

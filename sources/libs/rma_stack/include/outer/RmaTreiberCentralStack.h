@@ -60,8 +60,6 @@ namespace rma_stack
         bool isStopRequested();
         bool tryPush(const T &rValue);
         bool tryPop(T &rValue);
-        void putDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress);
-        void getDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress);
 
     private:
         std::chrono::nanoseconds backoffMinDelay;
@@ -73,42 +71,6 @@ namespace rma_stack
         T* m_pDataArr{nullptr};
         std::shared_ptr<spdlog::logger> m_logger;
     };
-
-    template<typename T>
-    void RmaTreiberCentralStack<T>::getDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress)
-    {
-        constexpr auto valueSize = sizeof (rValue);
-        MPI_Win_lock_all(0, m_dataWin);
-        MPI_Get(&rValue,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                dataAddress.rank,
-                dataAddress.offset,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                m_dataWin
-        );
-        MPI_Win_flush(dataAddress.rank, m_dataWin);
-        MPI_Win_unlock_all(m_dataWin);
-    }
-
-    template<typename T>
-    void RmaTreiberCentralStack<T>::putDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress)
-    {
-        constexpr auto valueSize = sizeof (rValue);
-        MPI_Win_lock_all(0, m_dataWin);
-        MPI_Put(&rValue,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                dataAddress.rank,
-                dataAddress.offset,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                m_dataWin
-        );
-        MPI_Win_flush(dataAddress.rank, m_dataWin);
-        MPI_Win_unlock_all(m_dataWin);
-    }
 
     template<typename T>
     void RmaTreiberCentralStack<T>::release()
@@ -209,34 +171,24 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPush(const T &rValue)
     {
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d started 'tryPush'",
-                            m_rank
-        );
-
-        auto nodeAddress = m_innerStack.acquireNode(m_rank);
-        if (isGlobalAddressDummy(nodeAddress))
-        {
-            SPDLOG_LOGGER_TRACE(m_logger,
-                                "rank %d failed to find free node in 'tryPush'",
-                                m_rank
+        auto res = m_innerStack.push([&rValue, &win=m_dataWin](const ref_counting::GlobalAddress& dataAddress){
+            constexpr auto valueSize = sizeof(rValue);
+            MPI_Win_lock_all(0, win);
+            MPI_Put(&rValue,
+                    valueSize,
+                    MPI_UNSIGNED_CHAR,
+                    dataAddress.rank,
+                    dataAddress.offset,
+                    valueSize,
+                    MPI_UNSIGNED_CHAR,
+                    win
             );
+            MPI_Win_flush(dataAddress.rank, win);
+            MPI_Win_unlock_all(win);
+        });
+
+        if (!res)
             return false;
-        }
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d acquired free node in 'tryPush'",
-                            m_rank
-        );
-
-        ref_counting::GlobalAddress dataAddress = nodeAddress;
-        m_innerStack.putDataAddressInNode(nodeAddress, dataAddress);
-        putDataByAddress(rValue, dataAddress);
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d put data in 'tryPush'",
-                            m_rank
-        );
-
-        m_innerStack.push(nodeAddress);
 
         SPDLOG_LOGGER_TRACE(m_logger,
                             "rank %d finished 'tryPush'",
@@ -248,15 +200,24 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPop(T &rValue)
     {
-        ref_counting::GlobalAddress nodeAddress = m_innerStack.popHalf();
+        m_innerStack.pop([&rValue, &win=m_dataWin](const ref_counting::GlobalAddress &dataAddress) {
+                    if (ref_counting::isGlobalAddressDummy(dataAddress))
+                        return;
 
-        if (ref_counting::isGlobalAddressDummy(nodeAddress))
-            return false;
-
-        ref_counting::GlobalAddress dataAddress = nodeAddress;
-        getDataByAddress(rValue, dataAddress);
-
-        m_innerStack.releaseNode(nodeAddress);
+                    constexpr auto valueSize = sizeof(rValue);
+                    MPI_Win_lock_all(0, win);
+                    MPI_Get(&rValue,
+                            valueSize,
+                            MPI_UNSIGNED_CHAR,
+                            dataAddress.rank,
+                            dataAddress.offset,
+                            valueSize,
+                            MPI_UNSIGNED_CHAR,
+                            win
+                    );
+                    MPI_Win_flush(dataAddress.rank, win);
+                    MPI_Win_unlock_all(win);
+        });
         return true;
     }
 

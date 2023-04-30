@@ -24,7 +24,7 @@ namespace rma_stack::ref_counting
         return m_internalCounter;
     }
 
-    int64_t Node::getOffset() const
+    uint64_t Node::getOffset() const
     {
         return m_dataOffset;
     }
@@ -54,16 +54,6 @@ namespace rma_stack::ref_counting
     bool Node::isDummy() const
     {
         return std::abs(m_internalCounter) + 1> DummyRank;
-    }
-
-    void Node::setAcquired()
-    {
-        m_acquired = 1;
-    }
-
-    void Node::resetAcquired()
-    {
-        m_acquired = 0;
     }
 
     const rma_stack::ref_counting::CountedNodePtr &Node::getCountedNodePtr() const

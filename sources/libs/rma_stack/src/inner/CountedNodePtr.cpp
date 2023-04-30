@@ -108,7 +108,7 @@ namespace rma_stack::ref_counting
         return !(lhs == rhs);
     }
 
-    bool CountedNodePtr::setExternalCounter(int16_t t_externalCounter)
+    bool CountedNodePtr::setExternalCounter(int64_t t_externalCounter)
     {
         auto absValue = std::abs(t_externalCounter);
 

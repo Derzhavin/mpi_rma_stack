@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <mpi.h>
 #include <spdlog/spdlog.h>
+#include <functional>
 
 #include "CountedNodePtr.h"
 #include "Node.h"
@@ -25,24 +26,22 @@ namespace rma_stack::ref_counting
                        size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger
            );
-            void push(GlobalAddress nodeAddress);
-            GlobalAddress popHalf();
-            [[nodiscard]] GlobalAddress acquireNode(int rank) const;
-            void putDataAddressInNode(const GlobalAddress &nodeAddress, const GlobalAddress &dataAddress) const;
-            void releaseNode(GlobalAddress nodeAddress) const;
+            bool push(const std::function<void(GlobalAddress)>& putDataCallback);
+            void pop(const std::function<void(GlobalAddress)>& getDataCallback);
             void release();
+            [[nodiscard]] size_t getElemsUpLimit() const;
 
         private:
             [[nodiscard]] bool isCentralRank() const;
             void allocateProprietaryData(MPI_Comm comm);
             void increaseHeadCount(CountedNodePtr& oldCountedNodePtr);
             void initStackWithDummy();
+            void putDataAddressInNode(const GlobalAddress &nodeAddress, const GlobalAddress &dataAddress) const;
+            [[nodiscard]] GlobalAddress acquireNode(int rank) const;
+
+            void releaseNode(GlobalAddress nodeAddress) const;
         private:
             size_t m_elemsUpLimit{0};
-        public:
-            [[nodiscard]] size_t getElemsUpLimit() const;
-
-        private:
             int m_rank{-1};
 
             MPI_Win m_headWin{MPI_WIN_NULL};
