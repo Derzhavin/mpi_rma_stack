@@ -25,16 +25,17 @@ namespace rma_stack::ref_counting
                        size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger
            );
-            DataAddress allocatePush(uint64_t rank);
-            DataAddress deallocatePop();
+            void push(GlobalAddress nodeAddress);
+            GlobalAddress popHalf();
+            [[nodiscard]] GlobalAddress acquireNode(int rank) const;
+            void putDataAddressInNode(const GlobalAddress &nodeAddress, const GlobalAddress &dataAddress) const;
+            void releaseNode(GlobalAddress nodeAddress) const;
             void release();
 
         private:
             [[nodiscard]] bool isCentralRank() const;
             void allocateProprietaryData(MPI_Comm comm);
-            void increaseHeadCount(CountedNodePtr& oldCounter);
-            [[nodiscard]] DataAddress acquireNode(uint64_t rank) const;
-            void releaseNode(DataAddress nodeAddress) const;
+            void increaseHeadCount(CountedNodePtr& oldCountedNodePtr);
             void initStackWithDummy();
         private:
             size_t m_elemsUpLimit{0};
@@ -46,11 +47,11 @@ namespace rma_stack::ref_counting
 
             MPI_Win m_headWin{MPI_WIN_NULL};
             CountedNodePtr* m_pHeadCountedNodePtr{nullptr};
-            DataAddress m_headAddress{.offset = 0, .rank = CountedNodePtrDummyRank};
+            GlobalAddress m_headAddress{.offset = 0, .rank = DummyRank};
 
             MPI_Win m_nodeWin{MPI_WIN_NULL};
             Node* m_pNodeArr{nullptr};
-            MPI_Aint m_nodeArrBaseAddress{(MPI_Aint) MPI_BOTTOM};
+            MPI_Aint m_nodeArrBase{(MPI_Aint) MPI_BOTTOM};
 
             std::shared_ptr<spdlog::logger> m_logger;
         };

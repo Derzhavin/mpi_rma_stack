@@ -25,7 +25,7 @@ namespace rma_stack::ref_counting
 
     bool CountedNodePtr::isDummy() const
     {
-        return m_rank > CountedNodeUpLimit;
+        return m_rank >= DummyRank;
     }
 
     bool CountedNodePtr::incExternalCounter()
@@ -40,7 +40,7 @@ namespace rma_stack::ref_counting
         }
         else
         {
-            if (m_externalCounter + 1 > CountedNodeUpLimit)
+            if (m_externalCounter + 1 > DummyRank)
                 return false;
 
             ++m_externalCounter;
@@ -52,7 +52,7 @@ namespace rma_stack::ref_counting
     {
         if (m_bExternalCounterNeg)
         {
-            if (m_externalCounter + 1 > CountedNodeUpLimit)
+            if (m_externalCounter + 1 > DummyRank)
                 return false;
 
             ++m_externalCounter;
@@ -72,7 +72,7 @@ namespace rma_stack::ref_counting
     CountedNodePtr::CountedNodePtr():
     m_externalCounter(0),
     m_bExternalCounterNeg(0),
-    m_rank(CountedNodePtrDummyRank),
+    m_rank(DummyRank),
     m_offset(0)
     {
 
@@ -85,7 +85,7 @@ namespace rma_stack::ref_counting
 
     bool CountedNodePtr::setRank(uint64_t t_rank)
     {
-        if (t_rank > CountedNodeUpLimit)
+        if (t_rank >= DummyRank)
             return false;
         m_rank = t_rank;
         return true;
@@ -112,7 +112,7 @@ namespace rma_stack::ref_counting
     {
         auto absValue = std::abs(t_externalCounter);
 
-        if (absValue + 1 > CountedNodeUpLimit)
+        if (absValue + 1 > DummyRank)
             return false;
 
         m_externalCounter = absValue;

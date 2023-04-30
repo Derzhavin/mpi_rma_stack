@@ -26,11 +26,10 @@ namespace rma_stack
     public:
         typedef typename stack_interface::IStack_traits<RmaTreiberCentralStack>::ValueType ValueType;
 
-        explicit RmaTreiberCentralStack(MPI_Comm comm,
-                                        const std::chrono::nanoseconds &t_rBackoffMinDelay,
+        explicit RmaTreiberCentralStack(MPI_Comm comm, const std::chrono::nanoseconds &t_rBackoffMinDelay,
                                         const std::chrono::nanoseconds &t_rBackoffMaxDelay,
-                                        ref_counting::InnerStack &&t_innerStack
-        );
+                                        ref_counting::InnerStack &&t_innerStack,
+                                        std::shared_ptr<spdlog::logger> t_logger);
         static RmaTreiberCentralStack <T> create(
                 MPI_Comm comm,
                 MPI_Info info,
@@ -46,20 +45,23 @@ namespace rma_stack
         RmaTreiberCentralStack& operator=(RmaTreiberCentralStack&&)  noexcept = default;
         ~RmaTreiberCentralStack() = default;
 
+        void release();
+
     private:
-        // public interface begin
+        // public stack interface begin
         void pushImpl(const T &rValue);
         T popImpl();
         T& topImpl();
         size_t sizeImpl();
         bool isEmptyImpl();
-        void releaseImpl();
-        // public interface end
+        // public stack interface end
 
         void allocateProprietaryData(MPI_Comm comm);
         bool isStopRequested();
         bool tryPush(const T &rValue);
         bool tryPop(T &rValue);
+        void putDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress);
+        void getDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress);
 
     private:
         std::chrono::nanoseconds backoffMinDelay;
@@ -69,26 +71,69 @@ namespace rma_stack
         int m_rank{-1};
         MPI_Win m_dataWin{MPI_WIN_NULL};
         T* m_pDataArr{nullptr};
+        std::shared_ptr<spdlog::logger> m_logger;
     };
 
     template<typename T>
-    void RmaTreiberCentralStack<T>::releaseImpl()
+    void RmaTreiberCentralStack<T>::getDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress)
     {
-        while (!popImpl());
-        m_innerStack.release();
+        constexpr auto valueSize = sizeof (rValue);
+        MPI_Win_lock_all(0, m_dataWin);
+        MPI_Get(&rValue,
+                valueSize,
+                MPI_UNSIGNED_CHAR,
+                dataAddress.rank,
+                dataAddress.offset,
+                valueSize,
+                MPI_UNSIGNED_CHAR,
+                m_dataWin
+        );
+        MPI_Win_flush(dataAddress.rank, m_dataWin);
+        MPI_Win_unlock_all(m_dataWin);
     }
 
     template<typename T>
-    RmaTreiberCentralStack<T>::RmaTreiberCentralStack(
-            MPI_Comm comm,
-            const std::chrono::nanoseconds &t_rBackoffMinDelay,
-            const std::chrono::nanoseconds &t_rBackoffMaxDelay,
-            ref_counting::InnerStack &&t_innerStack
-    )
+    void RmaTreiberCentralStack<T>::putDataByAddress(const T &rValue, ref_counting::GlobalAddress &dataAddress)
+    {
+        constexpr auto valueSize = sizeof (rValue);
+        MPI_Win_lock_all(0, m_dataWin);
+        MPI_Put(&rValue,
+                valueSize,
+                MPI_UNSIGNED_CHAR,
+                dataAddress.rank,
+                dataAddress.offset,
+                valueSize,
+                MPI_UNSIGNED_CHAR,
+                m_dataWin
+        );
+        MPI_Win_flush(dataAddress.rank, m_dataWin);
+        MPI_Win_unlock_all(m_dataWin);
+    }
+
+    template<typename T>
+    void RmaTreiberCentralStack<T>::release()
+    {
+        while (!popImpl());
+        m_innerStack.release();
+
+        MPI_Free_mem(m_pDataArr);
+        m_pDataArr = nullptr;
+        SPDLOG_LOGGER_TRACE(m_logger, "freed up data arr RMA memory");
+
+        MPI_Win_free(&m_dataWin);
+        SPDLOG_LOGGER_TRACE(m_logger, "freed up data win RMA memory");
+    }
+
+    template<typename T>
+    RmaTreiberCentralStack<T>::RmaTreiberCentralStack(MPI_Comm comm, const std::chrono::nanoseconds &t_rBackoffMinDelay,
+                                                      const std::chrono::nanoseconds &t_rBackoffMaxDelay,
+                                                      ref_counting::InnerStack &&t_innerStack,
+                                                      std::shared_ptr<spdlog::logger> t_logger)
     :
     backoffMinDelay(t_rBackoffMinDelay),
     backoffMaxDelay(t_rBackoffMaxDelay),
-    m_innerStack(std::move(t_innerStack))
+    m_innerStack(std::move(t_innerStack)),
+    m_logger(std::move(t_logger))
     {
         MPI_Comm_rank(comm, &m_rank);
 
@@ -110,6 +155,10 @@ namespace rma_stack
                 backoff.backoff();
             }
         }
+        SPDLOG_LOGGER_TRACE(m_logger,
+                            "rank %d finished 'pushImpl'",
+                            m_rank
+        );
     }
 
     template<typename T>
@@ -160,46 +209,54 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPush(const T &rValue)
     {
-        ref_counting::DataAddress dataAddress = m_innerStack.allocatePush(m_rank);
-
-        if (ref_counting::isDummyAddress(dataAddress))
-            return false;
-
-        constexpr auto valueSize = sizeof (rValue);
-        MPI_Win_lock_all(0, m_dataWin);
-        MPI_Put(&rValue,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                dataAddress.rank,
-                dataAddress.offset,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                m_dataWin
+        SPDLOG_LOGGER_TRACE(m_logger,
+                            "rank %d started 'tryPush'",
+                            m_rank
         );
-        MPI_Win_unlock_all(m_dataWin);
+
+        auto nodeAddress = m_innerStack.acquireNode(m_rank);
+        if (isGlobalAddressDummy(nodeAddress))
+        {
+            SPDLOG_LOGGER_TRACE(m_logger,
+                                "rank %d failed to find free node in 'tryPush'",
+                                m_rank
+            );
+            return false;
+        }
+        SPDLOG_LOGGER_TRACE(m_logger,
+                            "rank %d acquired free node in 'tryPush'",
+                            m_rank
+        );
+
+        ref_counting::GlobalAddress dataAddress = nodeAddress;
+        m_innerStack.putDataAddressInNode(nodeAddress, dataAddress);
+        putDataByAddress(rValue, dataAddress);
+        SPDLOG_LOGGER_TRACE(m_logger,
+                            "rank %d put data in 'tryPush'",
+                            m_rank
+        );
+
+        m_innerStack.push(nodeAddress);
+
+        SPDLOG_LOGGER_TRACE(m_logger,
+                            "rank %d finished 'tryPush'",
+                            m_rank
+        );
         return true;
     }
 
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPop(T &rValue)
     {
-        ref_counting::DataAddress dataAddress = m_innerStack.deallocatePop();
+        ref_counting::GlobalAddress nodeAddress = m_innerStack.popHalf();
 
-        if (ref_counting::isDummyAddress(dataAddress))
+        if (ref_counting::isGlobalAddressDummy(nodeAddress))
             return false;
 
-        constexpr auto valueSize = sizeof (rValue);
-        MPI_Win_lock_all(0, m_dataWin);
-        MPI_Get(&rValue,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                dataAddress.rank,
-                dataAddress.offset,
-                valueSize,
-                MPI_UNSIGNED_CHAR,
-                m_dataWin
-        );
-        MPI_Win_unlock_all(m_dataWin);
+        ref_counting::GlobalAddress dataAddress = nodeAddress;
+        getDataByAddress(rValue, dataAddress);
+
+        m_innerStack.releaseNode(nodeAddress);
         return true;
     }
 
@@ -250,8 +307,7 @@ namespace rma_stack
                 comm,
                 t_rBackoffMinDelay,
                 t_rBackoffMaxDelay,
-                std::move(innerStack)
-        );
+                std::move(innerStack), std::shared_ptr<spdlog::logger>());
 
         return stack;
     }
@@ -287,10 +343,6 @@ namespace stack_interface
         static bool isEmptyImpl(rma_stack::RmaTreiberCentralStack<T>& stack)
         {
             return stack.isEmptyImpl();
-        }
-        static void releaseImpl(rma_stack::RmaTreiberCentralStack<T>& stack)
-        {
-            stack.releaseImpl();
         }
     };
 }

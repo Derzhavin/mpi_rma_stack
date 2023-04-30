@@ -38,10 +38,6 @@ namespace stack_interface
         {
             return StackTraitsImpl::isEmptyImpl(impl());
         }
-        void release()
-        {
-            StackTraitsImpl::releaseImpl(impl());
-        }
     private:
         StackImpl& impl()
         {

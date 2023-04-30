@@ -5,13 +5,15 @@
 #include <cmath>
 
 #include "inner/Node.h"
+#include "inner/CountedNodePtr.h"
 
 namespace rma_stack::ref_counting
 {
     Node::Node()
     :
-    m_offset(0),
-    m_rank(NodeDummyRank),
+    m_dataOffset(0),
+    m_dataRank(DummyRank),
+    m_acquired(1),
     m_internalCounter(0)
     {
 
@@ -24,17 +26,17 @@ namespace rma_stack::ref_counting
 
     int64_t Node::getOffset() const
     {
-        return m_offset;
+        return m_dataOffset;
     }
 
     uint64_t Node::getRank() const
     {
-        return m_rank;
+        return m_dataRank;
     }
 
     bool Node::incInternalCounter()
     {
-        if (m_internalCounter + 1 > CountedNodeUpLimit)
+        if (m_internalCounter + 1 > DummyRank)
             return false;
 
         ++m_internalCounter;
@@ -43,7 +45,7 @@ namespace rma_stack::ref_counting
 
     bool Node::decInternalCounter()
     {
-        if (std::abs(m_internalCounter - 1) > CountedNodeUpLimit)
+        if (std::abs(m_internalCounter - 1) > DummyRank)
             return false;
         --m_internalCounter;
         return true;
@@ -51,6 +53,21 @@ namespace rma_stack::ref_counting
 
     bool Node::isDummy() const
     {
-        return std::abs(m_internalCounter) > NodeUpLimit;
+        return std::abs(m_internalCounter) + 1> DummyRank;
+    }
+
+    void Node::setAcquired()
+    {
+        m_acquired = 1;
+    }
+
+    void Node::resetAcquired()
+    {
+        m_acquired = 0;
+    }
+
+    const rma_stack::ref_counting::CountedNodePtr &Node::getCountedNodePtr() const
+    {
+        return m_countedNodePtr;
     }
 } // rma_stack

@@ -4,8 +4,14 @@
 
 #include "inner/ref_counting.h"
 
-bool rma_stack::ref_counting::isDummyAddress(DataAddress dataAddress)
+bool rma_stack::ref_counting::isGlobalAddressDummy(GlobalAddress globalAddress)
 {
-    return dataAddress.rank == CountedNodePtrDummyRank;
+    return globalAddress.rank == DummyRank;
 }
+
+bool rma_stack::ref_counting::isValidRank(uint64_t rank)
+{
+    return rank < DummyRank;
+}
+
 
