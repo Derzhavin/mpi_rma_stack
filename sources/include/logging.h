@@ -7,7 +7,9 @@
 
 #include <string>
 
-std::string getLoggingFilename(int rank);
+std::string getLoggingFilename(int rank, std::string_view info);
 
 constexpr inline std::string_view defaultLoggerName{"DefaultLogger"};
+constexpr inline std::string_view producerConsumerBenchmarkLoggerName{"ProducerConsumerBenchmarkLogger"};
+
 #endif //SOURCES_LOGGING_H
