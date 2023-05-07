@@ -36,7 +36,6 @@ namespace rma_stack::ref_counting
             void allocateProprietaryData(MPI_Comm comm);
             void increaseHeadCount(CountedNodePtr& oldCountedNodePtr);
             void initStackWithDummy();
-            void putDataAddressInNode(const GlobalAddress &nodeAddress, const GlobalAddress &dataAddress) const;
             [[nodiscard]] GlobalAddress acquireNode(int rank) const;
 
             void releaseNode(GlobalAddress nodeAddress) const;

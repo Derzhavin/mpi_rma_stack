@@ -173,12 +173,14 @@ namespace rma_stack
     {
         auto res = m_innerStack.push([&rValue, &win=m_dataWin](const ref_counting::GlobalAddress& dataAddress){
             constexpr auto valueSize = sizeof(rValue);
+            const auto offset = dataAddress.offset * valueSize;
+
             MPI_Win_lock_all(0, win);
             MPI_Put(&rValue,
                     valueSize,
                     MPI_UNSIGNED_CHAR,
                     dataAddress.rank,
-                    dataAddress.offset,
+                    offset,
                     valueSize,
                     MPI_UNSIGNED_CHAR,
                     win
@@ -205,12 +207,14 @@ namespace rma_stack
                         return;
 
                     constexpr auto valueSize = sizeof(rValue);
+                    const auto offset = dataAddress.offset * valueSize;
+
                     MPI_Win_lock_all(0, win);
                     MPI_Get(&rValue,
                             valueSize,
                             MPI_UNSIGNED_CHAR,
                             dataAddress.rank,
-                            dataAddress.offset,
+                            offset,
                             valueSize,
                             MPI_UNSIGNED_CHAR,
                             win

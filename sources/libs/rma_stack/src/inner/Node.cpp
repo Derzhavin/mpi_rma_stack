@@ -11,8 +11,6 @@ namespace rma_stack::ref_counting
 {
     Node::Node()
     :
-    m_dataOffset(0),
-    m_dataRank(DummyRank),
     m_acquired(1),
     m_internalCounter(0)
     {
@@ -22,16 +20,6 @@ namespace rma_stack::ref_counting
     int64_t Node::getInternalCounter() const
     {
         return m_internalCounter;
-    }
-
-    uint64_t Node::getOffset() const
-    {
-        return m_dataOffset;
-    }
-
-    uint64_t Node::getRank() const
-    {
-        return m_dataRank;
     }
 
     bool Node::incInternalCounter()
@@ -49,11 +37,6 @@ namespace rma_stack::ref_counting
             return false;
         --m_internalCounter;
         return true;
-    }
-
-    bool Node::isDummy() const
-    {
-        return std::abs(m_internalCounter) + 1> DummyRank;
     }
 
     const rma_stack::ref_counting::CountedNodePtr &Node::getCountedNodePtr() const
