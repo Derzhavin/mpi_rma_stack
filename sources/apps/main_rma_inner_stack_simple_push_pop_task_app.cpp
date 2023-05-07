@@ -35,11 +35,11 @@ int main(int argc, char *argv[])
             1s
     );
 
-    auto loggingFilename = getLoggingFilename(rank);
-    auto fileSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
-            loggingFilename.data()
+    auto loggingDefaultFilename = getLoggingFilename(rank, "default");
+    auto fileDefaultSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
+            loggingDefaultFilename.data()
     );
-    duplicatingFilterSink->add_sink(fileSink);
+    duplicatingFilterSink->add_sink(fileDefaultSink);
     auto pDefaultLogger = std::make_shared<spdlog::logger>(defaultLoggerName.data(), duplicatingFilterSink);
     spdlog::set_default_logger(pDefaultLogger);
     spdlog::set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));

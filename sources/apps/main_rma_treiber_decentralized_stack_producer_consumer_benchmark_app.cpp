@@ -9,7 +9,7 @@
 #include <iostream>
 #include <chrono>
 
-#include "outer/RmaTreiberCentralStack.h"
+#include "outer/RmaTreiberDecentralizedStack.h"
 #include "include/stack_tasks.h"
 #include "include/logging.h"
 
@@ -44,9 +44,14 @@ int main(int argc, char *argv[])
     spdlog::set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
     spdlog::flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
 
+    auto loggingBenchmarkFilename = getLoggingFilename(rank, "benchmark");
+    auto fileBenchmarkSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
+            loggingBenchmarkFilename.data()
+    );
+
     try
     {
-        auto rmaTreiberStack = rma_stack::RmaTreiberCentralStack<int>::create(
+        auto rmaTreiberStack = rma_stack::RmaTreiberDecentralizedStack<int>::create(
                 comm,
                 info,
                 minBackoffDelay,
@@ -54,7 +59,7 @@ int main(int argc, char *argv[])
                 elemsUpLimit,
                 duplicatingFilterSink
         );
-        runStackSimpleIntPushPopTask(rmaTreiberStack, comm);
+        runStackProducerConsumerBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)

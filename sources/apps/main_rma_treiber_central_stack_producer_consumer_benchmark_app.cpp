@@ -44,6 +44,11 @@ int main(int argc, char *argv[])
     spdlog::set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
     spdlog::flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
 
+    auto loggingBenchmarkFilename = getLoggingFilename(rank, "benchmark");
+    auto fileBenchmarkSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
+            loggingBenchmarkFilename.data()
+    );
+
     try
     {
         auto rmaTreiberStack = rma_stack::RmaTreiberCentralStack<int>::create(
@@ -54,7 +59,7 @@ int main(int argc, char *argv[])
                 elemsUpLimit,
                 duplicatingFilterSink
         );
-        runStackSimpleIntPushPopTask(rmaTreiberStack, comm);
+        runStackProducerConsumerBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)
