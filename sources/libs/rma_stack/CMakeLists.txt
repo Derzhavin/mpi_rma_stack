@@ -13,9 +13,11 @@ target_link_libraries(
         ${PROJECT_NAME}
         PUBLIC sub::stack_interface sub::custom_mpi_extensions
         PRIVATE ${MPI_C_LIBRARIES}
+        PUBLIC spdlog
 )
 target_include_directories(
         ${PROJECT_NAME}
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
         PUBLIC include
+        PUBLIC spdlog
 )
