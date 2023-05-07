@@ -7,12 +7,14 @@ set(CMAKE_CXX_STANDARD 17)
 add_library(
         ${PROJECT_NAME}
         INTERFACE
-        include/IStack.hpp
+        include/IStack.h
 )
+add_library(sub::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_include_directories(
         ${PROJECT_NAME}
         INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${PROJECT_NAME}>
+        .
 )

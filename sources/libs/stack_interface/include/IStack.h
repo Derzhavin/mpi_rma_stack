@@ -2,8 +2,8 @@
 // Created by denis on 22.01.23.
 //
 
-#ifndef SOURCES_ISTACK_HPP
-#define SOURCES_ISTACK_HPP
+#ifndef SOURCES_ISTACK_H
+#define SOURCES_ISTACK_H
 
 
 namespace stack_interface
@@ -18,17 +18,21 @@ namespace stack_interface
         typedef typename StackTraitsImpl::ValueType ValueType;
 
     public:
-        void push(ValueType& value)
+        void push(const ValueType &t_rValue)
         {
-            StackTraitsImpl::pushImpl(impl(), value);
+            StackTraitsImpl::pushImpl(impl(), t_rValue);
         }
-        void pop()
+        ValueType pop()
         {
-            StackTraitsImpl::popImpl(impl());
+            return StackTraitsImpl::popImpl(impl());
         }
         ValueType& top()
         {
             return StackTraitsImpl::topImpl(impl());
+        }
+        size_t size()
+        {
+            return StackTraitsImpl::sizeImpl(impl());
         }
         bool isEmpty()
         {
@@ -42,4 +46,4 @@ namespace stack_interface
     };
 } // stack_interface
 
-#endif //SOURCES_ISTACK_HPP
+#endif //SOURCES_ISTACK_H
