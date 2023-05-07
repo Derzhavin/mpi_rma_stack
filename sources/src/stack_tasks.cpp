@@ -13,7 +13,7 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
 
     for (auto& dataAddress: pushedAddresses)
     {
-        stack.push([&dataAddress](const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
+        stack.push([&dataAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
             dataAddress = t_dataAddress;
         });
         SPDLOG_DEBUG("received address by 'push' {}", dataAddress);
