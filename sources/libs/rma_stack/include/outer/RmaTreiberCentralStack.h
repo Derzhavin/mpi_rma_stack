@@ -22,6 +22,7 @@ namespace rma_stack
     template<typename T>
     class RmaTreiberCentralStack: public stack_interface::IStack<RmaTreiberCentralStack<T>>
     {
+        static constexpr inline int CENTRAL_RANK{0};
         friend class stack_interface::IStack_traits<rma_stack::RmaTreiberCentralStack<T>>;
     public:
         typedef typename stack_interface::IStack_traits<RmaTreiberCentralStack>::ValueType ValueType;
@@ -69,6 +70,7 @@ namespace rma_stack
         int m_rank{-1};
         MPI_Win m_dataWin{MPI_WIN_NULL};
         T* m_pDataArr{nullptr};
+        MPI_Aint m_dataBaseAddress{(MPI_Aint)MPI_BOTTOM};
         std::shared_ptr<spdlog::logger> m_logger;
     };
 
@@ -171,22 +173,23 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPush(const T &rValue)
     {
-        auto res = m_innerStack.push([&rValue, &win=m_dataWin](const ref_counting::GlobalAddress& dataAddress){
-            constexpr auto valueSize = sizeof(rValue);
-            const auto offset = dataAddress.offset * valueSize;
+        auto res = m_innerStack.push([&rValue, &win = m_dataWin, &dataBaseAddress=m_dataBaseAddress](const ref_counting::GlobalAddress &dataAddress) {
+            constexpr auto valueSize    = sizeof(rValue);
+            const auto offset           = dataAddress.offset * valueSize;
+            const auto displacement     = MPI_Aint_add(dataBaseAddress, offset);
 
-            MPI_Win_lock_all(0, win);
+            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
             MPI_Put(&rValue,
                     valueSize,
                     MPI_UNSIGNED_CHAR,
                     dataAddress.rank,
-                    offset,
+                    displacement,
                     valueSize,
                     MPI_UNSIGNED_CHAR,
                     win
             );
             MPI_Win_flush(dataAddress.rank, win);
-            MPI_Win_unlock_all(win);
+            MPI_Win_unlock(dataAddress.rank, win);
         });
 
         if (!res)
@@ -202,25 +205,25 @@ namespace rma_stack
     template<typename T>
     bool RmaTreiberCentralStack<T>::tryPop(T &rValue)
     {
-        m_innerStack.pop([&rValue, &win=m_dataWin](const ref_counting::GlobalAddress &dataAddress) {
+        m_innerStack.pop([&rValue, &win=m_dataWin, &dataBaseAddress=m_dataBaseAddress](const ref_counting::GlobalAddress &dataAddress) {
                     if (ref_counting::isGlobalAddressDummy(dataAddress))
                         return;
 
                     constexpr auto valueSize = sizeof(rValue);
                     const auto offset = dataAddress.offset * valueSize;
-
-                    MPI_Win_lock_all(0, win);
+                    const auto displacement = MPI_Aint_add(dataBaseAddress, offset);
+                    MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
                     MPI_Get(&rValue,
                             valueSize,
                             MPI_UNSIGNED_CHAR,
                             dataAddress.rank,
-                            offset,
+                            displacement,
                             valueSize,
                             MPI_UNSIGNED_CHAR,
                             win
                     );
                     MPI_Win_flush(dataAddress.rank, win);
-                    MPI_Win_unlock_all(win);
+                    MPI_Win_unlock(dataAddress.rank, win);
         });
         return true;
     }
@@ -228,26 +231,33 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberCentralStack<T>::allocateProprietaryData(MPI_Comm comm)
     {
-        auto elemsUpLimit = m_innerStack.getElemsUpLimit();
-        constexpr auto elemSize = sizeof(T);
+        if (m_rank == CENTRAL_RANK)
         {
-            auto mpiStatus = MPI_Alloc_mem(elemSize * elemsUpLimit, MPI_INFO_NULL,
-                                           &m_pDataArr);
-            if (mpiStatus != MPI_SUCCESS)
-                throw custom_mpi::MpiException(
-                        "failed to allocate RMA memory",
-                        __FILE__,
-                        __func__,
-                        __LINE__,
-                        mpiStatus
-                );
+            auto elemsUpLimit = m_innerStack.getElemsUpLimit();
+            constexpr auto elemSize = sizeof(T);
+            {
+                auto mpiStatus = MPI_Alloc_mem(elemSize * elemsUpLimit, MPI_INFO_NULL,
+                                               &m_pDataArr);
+                if (mpiStatus != MPI_SUCCESS)
+                    throw custom_mpi::MpiException(
+                            "failed to allocate RMA memory",
+                            __FILE__,
+                            __func__,
+                            __LINE__,
+                            mpiStatus
+                    );
+            }
+            std::fill_n(m_pDataArr, elemsUpLimit, T());
+            {
+                auto mpiStatus = MPI_Win_attach(m_dataWin, m_pDataArr, elemsUpLimit);
+                if (mpiStatus != MPI_SUCCESS)
+                    throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
+            }
+            MPI_Get_address(m_pDataArr, &m_dataBaseAddress);
         }
-        std::fill_n(m_pDataArr, elemsUpLimit, T());
-        {
-            auto mpiStatus = MPI_Win_attach(m_dataWin, m_pDataArr, elemsUpLimit);
-            if (mpiStatus != MPI_SUCCESS)
-                throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
-        }
+        auto mpiStatus = MPI_Bcast(&m_dataBaseAddress, 1, MPI_AINT, CENTRAL_RANK, comm);
+        if (mpiStatus != MPI_SUCCESS)
+            throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
     }
 
     template<typename T>
@@ -264,6 +274,8 @@ namespace rma_stack
         ref_counting::InnerStack innerStack(
                 comm,
                 info,
+                CENTRAL_RANK,
+                true,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)
         );
