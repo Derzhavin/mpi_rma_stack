@@ -4,8 +4,9 @@ project(sources)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
-add_subdirectory(libs)
+add_subdirectory(third_party/spdlog)
 
+add_subdirectory(libs)
 
 
 file(GLOB
@@ -21,11 +22,13 @@ target_link_libraries(
         rma_treiber_central_stack_simple_push_pop_task_app
         PRIVATE
         sub::rma_stack
+        spdlog
 )
 target_include_directories(
         rma_treiber_central_stack_simple_push_pop_task_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        spdlog
 )
 install(TARGETS rma_treiber_central_stack_simple_push_pop_task_app DESTINATION bin/)
 
@@ -44,11 +47,13 @@ target_link_libraries(
         rma_treiber_decentralized_stack_simple_push_pop_task_app
         PRIVATE
         sub::rma_stack
+        spdlog
 )
 target_include_directories(
         rma_treiber_decentralized_stack_simple_push_pop_task_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        spdlog
 )
 install(TARGETS rma_treiber_decentralized_stack_simple_push_pop_task_app DESTINATION bin/)
 
@@ -67,11 +72,13 @@ target_link_libraries(
         rma_treiber_central_stack_producer_consumer_benchmark_app
         PRIVATE
         sub::rma_stack
+        spdlog
 )
 target_include_directories(
         rma_treiber_central_stack_producer_consumer_benchmark_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        spdlog
 )
 install(TARGETS rma_treiber_central_stack_producer_consumer_benchmark_app DESTINATION bin/)
 
@@ -90,11 +97,13 @@ target_link_libraries(
         rma_treiber_decentralized_stack_producer_consumer_benchmark_app
         PRIVATE
         sub::rma_stack
+        spdlog
 )
 target_include_directories(
         rma_treiber_decentralized_stack_producer_consumer_benchmark_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        spdlog
 )
 install(TARGETS rma_treiber_decentralized_stack_producer_consumer_benchmark_app DESTINATION bin/)
 
@@ -114,10 +123,12 @@ target_link_libraries(
         rma_inner_stack_simple_push_pop_task_app
         PRIVATE
         sub::rma_stack
+        spdlog
 )
 target_include_directories(
         rma_inner_stack_simple_push_pop_task_app
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        spdlog
 )
 install(TARGETS rma_inner_stack_simple_push_pop_task_app DESTINATION bin/)

@@ -14,9 +14,6 @@ BUILD_JOBS=6
 # shellcheck disable=SC2115
 rm -rf ${INSTALL_DIR}/*
 
-conan install . --install-folder ${BUILD_DIR} -o *:shared=True --build=missing -pr=profiles/x86_64 -s build_type=Debug
-conan imports . --install-folder ${BUILD_DIR} --import-folder ${INSTALL_DIR}
-
 cmake -G "Unix Makefiles" \
       -S . \
       -B ${BUILD_DIR} \
