@@ -20,7 +20,7 @@ namespace rma_stack::ref_counting
         class InnerStack
         {
         public:
-            InnerStack(MPI_Comm comm, MPI_Info info, int headRank, bool t_centralized, size_t t_elemsUpLimit,
+            InnerStack(MPI_Comm comm, MPI_Info info, int t_headRank, bool t_centralized, size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger);
             bool push(const std::function<void(GlobalAddress)> &putDataCallback);
             void pop(const std::function<void(GlobalAddress)>& getDataCallback);
@@ -28,9 +28,9 @@ namespace rma_stack::ref_counting
             [[nodiscard]] size_t getElemsUpLimit() const;
 
         private:
-            void allocateProprietaryData(MPI_Comm comm, int headRank);
+            void allocateProprietaryData(MPI_Comm comm);
             void increaseHeadCount(CountedNodePtr& oldCountedNodePtr);
-            void initStackWithDummy(int headRank) const;
+            void initStackWithDummy() const;
             [[nodiscard]] GlobalAddress acquireNode(int rank) const;
 
             void releaseNode(GlobalAddress nodeAddress) const;

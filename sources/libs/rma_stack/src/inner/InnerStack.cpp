@@ -317,11 +317,12 @@ namespace rma_stack::ref_counting
         );
     }
 
-    InnerStack::InnerStack(MPI_Comm comm, MPI_Info info, int headRank, bool t_centralized, size_t t_elemsUpLimit,
+    InnerStack::InnerStack(MPI_Comm comm, MPI_Info info, int t_headRank, bool t_centralized, size_t t_elemsUpLimit,
                            std::shared_ptr<spdlog::logger> t_logger)
     :
     m_elemsUpLimit(t_elemsUpLimit),
     m_centralized(t_centralized),
+    m_headRank(t_headRank),
     m_logger(std::move(t_logger))
     {
         SPDLOG_LOGGER_INFO(m_logger, "getting rank");
@@ -341,8 +342,8 @@ namespace rma_stack::ref_counting
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
         }
-        allocateProprietaryData(comm, headRank);
-        initStackWithDummy(headRank);
+        allocateProprietaryData(comm);
+        initStackWithDummy();
         MPI_Barrier(comm);
     }
 
@@ -363,7 +364,7 @@ namespace rma_stack::ref_counting
         SPDLOG_LOGGER_TRACE(m_logger, "freed up head win RMA memory");
     }
 
-    void InnerStack::allocateProprietaryData(MPI_Comm comm, int headRank)
+    void InnerStack::allocateProprietaryData(MPI_Comm comm)
     {
         if (m_centralized)
         {
@@ -371,7 +372,7 @@ namespace rma_stack::ref_counting
 
             m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
 
-            if (m_rank == headRank)
+            if (m_rank == m_headRank)
             {
                 constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
                 const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
@@ -400,7 +401,7 @@ namespace rma_stack::ref_counting
             SPDLOG_LOGGER_INFO(m_logger, "allocated node proprietary data");
 
             SPDLOG_LOGGER_INFO(m_logger, "started to broadcast node arr addresses");
-            auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, headRank, comm);
+            auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, m_headRank, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast node array address", __FILE__, __func__ , __LINE__, mpiStatus);
             SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting node arr addresses");
@@ -453,8 +454,7 @@ namespace rma_stack::ref_counting
             SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting node arr addresses");
         }
 
-
-        if (m_rank == headRank)
+        if (m_rank == m_headRank)
         {
             SPDLOG_LOGGER_INFO(m_logger, "started to allocate head data");
 
@@ -477,22 +477,21 @@ namespace rma_stack::ref_counting
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
             MPI_Get_address(m_pHeadCountedNodePtr, &m_headAddress);
-            m_headRank      = 1;
             SPDLOG_LOGGER_INFO(m_logger, "finished allocating head data");
         }
 
         {
             SPDLOG_LOGGER_INFO(m_logger, "started to broadcast head address");
-            auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, headRank, comm);
+            auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, m_headRank, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
             SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting head address");
         }
     }
 
-    void InnerStack::initStackWithDummy(int headRank) const
+    void InnerStack::initStackWithDummy() const
     {
-        if (m_rank == headRank)
+        if (m_rank == m_headRank)
         {
             SPDLOG_LOGGER_INFO(m_logger, "started to initialize head with dummy");
             MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
