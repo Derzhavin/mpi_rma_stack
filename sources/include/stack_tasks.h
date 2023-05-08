@@ -88,5 +88,5 @@ void runStackProducerConsumerBenchmarkTask(stack_interface::IStack<StackImpl> &s
     const double workloadSec = std::chrono::duration_cast<std::chrono::microseconds>(workload).count() / 1'000'000.0f;
     const double tElapsedSec = tEndSec - tBeginSec - (opsNum * workloadSec);
 
-    SPDLOG_LOGGER_INFO(pLogger, "rank {}, elapsed (sec) {}", rank, tElapsedSec);
+    SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}", procNum, rank, tElapsedSec);
 }
