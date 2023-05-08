@@ -9,9 +9,9 @@
 
 namespace rma_stack::ref_counting
 {
-    constexpr uint64_t OffsetBitsLimit          = 39;
-    constexpr uint64_t RankBitsLimit            = 12;
+    constexpr uint64_t RankBitsLimit            = 13;
     constexpr uint64_t ExternalCounterBitsLimit = RankBitsLimit;
+    constexpr uint64_t OffsetBitsLimit          = 64 - RankBitsLimit * 2;
     constexpr uint64_t InternalCounterBitsLimit = RankBitsLimit;
     constexpr uint64_t DummyRank                = (1 << RankBitsLimit) - 1;
 

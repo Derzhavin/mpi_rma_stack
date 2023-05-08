@@ -177,7 +177,7 @@ namespace rma_stack::ref_counting
         {
             increaseHeadCount(oldHeadCountedNodePtr);
             GlobalAddress nodeAddress = {
-                    .offset = static_cast<uint64_t>(oldHeadCountedNodePtr.getOffset()),
+                    .offset = oldHeadCountedNodePtr.getOffset(),
                     .rank = oldHeadCountedNodePtr.getRank()
             };
             if (isGlobalAddressDummy(nodeAddress))
