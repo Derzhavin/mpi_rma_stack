@@ -1,3 +1,3 @@
 echo "procNum: $1"
-cd ..
-mpiexec -np $1 ./install-debug/bin/rma_treiber_central_stack_producer_consumer_benchmark_app
+cd ../install-debug/bin/ || exit
+mpiexec -np "$1" ./rma_treiber_central_stack_producer_consumer_benchmark_app

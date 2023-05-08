@@ -132,3 +132,6 @@ target_include_directories(
         spdlog
 )
 install(TARGETS rma_inner_stack_simple_push_pop_task_app DESTINATION bin/)
+
+
+install(TARGETS spdlog DESTINATION lib/)

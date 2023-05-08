@@ -21,3 +21,5 @@ target_include_directories(
         PUBLIC include
         PUBLIC spdlog
 )
+
+install(TARGETS ${PROJECT_NAME} DESTINATION lib/)
