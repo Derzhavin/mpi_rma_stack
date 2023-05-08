@@ -93,7 +93,7 @@ namespace rma_stack::ref_counting
 
     GlobalAddress InnerStack::acquireNode(int rank) const
     {
-        GlobalAddress nodeGlobalAddress = { .rank = DummyRank};
+        GlobalAddress nodeGlobalAddress = {DummyRank, 0, 0};
 
         if (!isValidRank(rank))
             return nodeGlobalAddress;
@@ -102,7 +102,7 @@ namespace rma_stack::ref_counting
         uint32_t oldAcquiredField{0};
         uint32_t resAcquiredField{0};
 
-        for (MPI_Aint i = 0; i < m_elemsUpLimit; ++i)
+        for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(m_elemsUpLimit); ++i)
         {
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
             const auto nodeDisplacement = i * nodeSize;
@@ -177,8 +177,9 @@ namespace rma_stack::ref_counting
         {
             increaseHeadCount(oldHeadCountedNodePtr);
             GlobalAddress nodeAddress = {
-                    .offset = oldHeadCountedNodePtr.getOffset(),
-                    .rank = oldHeadCountedNodePtr.getRank()
+                    oldHeadCountedNodePtr.getOffset(),
+                    oldHeadCountedNodePtr.getRank(),
+                    0
             };
             if (isGlobalAddressDummy(nodeAddress))
                 return;

@@ -16,9 +16,6 @@ namespace rma_stack::ref_counting
     {
     public:
         Node();
-        [[nodiscard]] int64_t getInternalCounter() const;
-        bool incInternalCounter();
-        bool decInternalCounter();
         [[nodiscard]] const CountedNodePtr &getCountedNodePtr() const;
 
     private:

@@ -23,7 +23,7 @@ namespace rma_stack::ref_counting
 
     bool CountedNodePtr::incExternalCounter()
     {
-        if (m_externalCounter + 1 > DummyRank)
+        if (m_externalCounter + 1u > DummyRank)
             return false;
 
         ++m_externalCounter;
@@ -31,9 +31,9 @@ namespace rma_stack::ref_counting
     }
 
     CountedNodePtr::CountedNodePtr():
-    m_externalCounter(0),
+    m_offset(0),
     m_rank(DummyRank),
-    m_offset(0)
+    m_externalCounter(0)
     {
 
     }
