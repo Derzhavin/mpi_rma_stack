@@ -6,6 +6,7 @@
 
 void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, int comm)
 {
+    SPDLOG_DEBUG("started 'runInnerStackSimplePushPopTask'");
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 

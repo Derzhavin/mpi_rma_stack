@@ -54,7 +54,9 @@ int main(int argc, char *argv[])
     {
         auto innerStack = rma_stack::ref_counting::InnerStack(
                 comm,
-                info, 0, false,
+                info,
+                0,
+                true,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)
         );
@@ -63,12 +65,12 @@ int main(int argc, char *argv[])
     }
     catch (custom_mpi_extensions::MpiException& ex)
     {
-        std::cerr << ex;
+        SPDLOG_INFO("MPI exception"s + ex.what());
         returnCode = EXIT_FAILURE;
     }
     catch (std::exception& ex)
     {
-        std::cerr << "Unexpected exception: " << ex.what();
+        SPDLOG_INFO("Unexpected exception: "s + ex.what());
         returnCode = EXIT_FAILURE;
     }
 

@@ -19,6 +19,8 @@ template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
 void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm)
 {
+    SPDLOG_INFO("started 'runStackSimpleIntPushPopTask'");
+
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
@@ -53,6 +55,8 @@ template<typename StackImpl,
 void runStackProducerConsumerBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
                                            std::shared_ptr<spdlog::sinks::sink> loggerSink)
 {
+    SPDLOG_INFO("started 'runStackProducerConsumerBenchmarkTask'");
+
     auto pLogger = std::make_shared<spdlog::logger>(producerConsumerBenchmarkLoggerName.data(), loggerSink);
     pLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
     pLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));

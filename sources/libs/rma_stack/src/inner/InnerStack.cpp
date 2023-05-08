@@ -324,11 +324,13 @@ namespace rma_stack::ref_counting
     m_centralized(t_centralized),
     m_logger(std::move(t_logger))
     {
+        SPDLOG_LOGGER_INFO(m_logger, "getting rank");
         {
             auto mpiStatus = MPI_Comm_rank(comm, &m_rank);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to get rank", __FILE__, __func__, __LINE__, mpiStatus);
         }
+        SPDLOG_LOGGER_INFO(m_logger, "got rank {}", m_rank);
         {
             auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_nodeWin);
             if (mpiStatus != MPI_SUCCESS)
@@ -341,6 +343,7 @@ namespace rma_stack::ref_counting
         }
         allocateProprietaryData(comm, headRank);
         initStackWithDummy(headRank);
+        MPI_Barrier(comm);
     }
 
     void InnerStack::release()
@@ -364,6 +367,10 @@ namespace rma_stack::ref_counting
     {
         if (m_centralized)
         {
+            SPDLOG_LOGGER_INFO(m_logger, "started to allocate node proprietary data");
+
+            m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
+
             if (m_rank == headRank)
             {
                 constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
@@ -388,16 +395,20 @@ namespace rma_stack::ref_counting
                     if (mpiStatus != MPI_SUCCESS)
                         throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
                 }
-                m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
                 MPI_Get_address(m_pNodeArr, m_pNodeArrAddresses.get());
             }
+            SPDLOG_LOGGER_INFO(m_logger, "allocated node proprietary data");
 
+            SPDLOG_LOGGER_INFO(m_logger, "started to broadcast node arr addresses");
             auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, headRank, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast node array address", __FILE__, __func__ , __LINE__, mpiStatus);
+            SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting node arr addresses");
         }
         else
         {
+            SPDLOG_LOGGER_INFO(m_logger, "started to allocate node proprietary data");
+
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
             const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
             {
@@ -420,6 +431,11 @@ namespace rma_stack::ref_counting
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
+
+            SPDLOG_LOGGER_INFO(m_logger, "allocated node proprietary data");
+
+            SPDLOG_LOGGER_INFO(m_logger, "started to broadcast node arr addresses");
+
             int procNum{0};
             MPI_Comm_size(comm, &procNum);
             m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(procNum);
@@ -434,11 +450,14 @@ namespace rma_stack::ref_counting
                         throw custom_mpi::MpiException("failed to broadcast node array base address", __FILE__, __func__ , __LINE__, mpiStatus);
                 }
             }
+            SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting node arr addresses");
         }
 
 
         if (m_rank == headRank)
         {
+            SPDLOG_LOGGER_INFO(m_logger, "started to allocate head data");
+
             {
                 auto mpiStatus = MPI_Alloc_mem(sizeof(CountedNodePtr), MPI_INFO_NULL,
                                                &m_pHeadCountedNodePtr);
@@ -459,12 +478,15 @@ namespace rma_stack::ref_counting
             }
             MPI_Get_address(m_pHeadCountedNodePtr, &m_headAddress);
             m_headRank      = 1;
+            SPDLOG_LOGGER_INFO(m_logger, "finished allocating head data");
         }
 
         {
+            SPDLOG_LOGGER_INFO(m_logger, "started to broadcast head address");
             auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, headRank, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
+            SPDLOG_LOGGER_INFO(m_logger, "finished broadcasting head address");
         }
     }
 
@@ -472,6 +494,7 @@ namespace rma_stack::ref_counting
     {
         if (m_rank == headRank)
         {
+            SPDLOG_LOGGER_INFO(m_logger, "started to initialize head with dummy");
             MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
             CountedNodePtr dummyCountedNodePtr;
             MPI_Put(&dummyCountedNodePtr,
@@ -485,6 +508,7 @@ namespace rma_stack::ref_counting
             );
             MPI_Win_flush(m_headRank, m_headWin);
             MPI_Win_unlock(m_headRank, m_headWin);
+            SPDLOG_LOGGER_INFO(m_logger, "initialized head with dummy");
         }
     }
 
