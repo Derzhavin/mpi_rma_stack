@@ -89,7 +89,7 @@ void runStackProducerConsumerBenchmarkTask(stack_interface::IStack<StackImpl> &s
     const double tElapsedSec = tEndSec - tBeginSec - (opsNum * workloadSec);
 
     double tTotalElapsedSec{0};
-    MPI_Reduce(&tElapsedSec, &tTotalElapsedSec, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+    MPI_Allreduce(&tElapsedSec, &tTotalElapsedSec, 1, MPI_DOUBLE, MPI_MAX, comm);
 
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
 }
