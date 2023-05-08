@@ -9,7 +9,8 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    rma_stack::ref_counting::GlobalAddress pushedAddresses[5]{0};
+    const int pushedAddressesSize{5};
+    rma_stack::ref_counting::GlobalAddress pushedAddresses[pushedAddressesSize];
 
     for (auto& dataAddress: pushedAddresses)
     {
@@ -19,9 +20,10 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
         SPDLOG_DEBUG("received address by 'push' {}", dataAddress);
     }
 
-    for (int i = 0; i < sizeof(pushedAddresses); ++i)
+    for (int i = 0; i < pushedAddressesSize; ++i)
     {
-        rma_stack::ref_counting::GlobalAddress dataAddress{.rank = rma_stack::ref_counting::DummyRank};
+        rma_stack::ref_counting::GlobalAddress dataAddress{0, rma_stack::ref_counting::DummyRank, 0};
+
         stack.pop([&dataAddress] (const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
             dataAddress = t_dataAddress;
         });

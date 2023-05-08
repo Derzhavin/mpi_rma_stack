@@ -17,28 +17,6 @@ namespace rma_stack::ref_counting
 
     }
 
-    int64_t Node::getInternalCounter() const
-    {
-        return m_internalCounter;
-    }
-
-    bool Node::incInternalCounter()
-    {
-        if (m_internalCounter + 1 > DummyRank)
-            return false;
-
-        ++m_internalCounter;
-        return true;
-    }
-
-    bool Node::decInternalCounter()
-    {
-        if (std::abs(m_internalCounter - 1) > DummyRank)
-            return false;
-        --m_internalCounter;
-        return true;
-    }
-
     const rma_stack::ref_counting::CountedNodePtr &Node::getCountedNodePtr() const
     {
         return m_countedNodePtr;

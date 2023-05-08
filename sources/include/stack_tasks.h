@@ -25,9 +25,10 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
     int size{0};
     MPI_Comm_size(comm, &size);
 
-    int elems[5]{0};
+    const int elemsSize = 5;
+    int elems[elemsSize]{0};
 
-    for (int i = 0; i < sizeof(elems); ++i)
+    for (int i = 0; i < elemsSize; ++i)
     {
         elems[i] = i * size + rank;
     }
@@ -38,7 +39,7 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
         SPDLOG_DEBUG("received elem by 'push' {}", elem);
     }
 
-    for (int i = 0; i < sizeof(elems); ++i)
+    for (int i = 0; i < elemsSize; ++i)
     {
         int elem = stack.pop();
         SPDLOG_DEBUG("brought back elem by 'pop' {}", elem);
