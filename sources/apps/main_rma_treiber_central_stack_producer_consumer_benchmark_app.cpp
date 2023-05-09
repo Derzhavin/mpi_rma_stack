@@ -30,12 +30,12 @@ int main(int argc, char *argv[])
     const auto maxBackoffDelay = 100ns;
     const auto elemsUpLimit{15000};
 
-    auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_st>(
+    auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s
     );
 
     auto loggingDefaultFilename = getLoggingFilename(rank, "default");
-    auto fileDefaultSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
+    auto fileDefaultSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
             loggingDefaultFilename.data()
     );
     duplicatingFilterSink->add_sink(fileDefaultSink);
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     spdlog::flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
 
     auto loggingBenchmarkFilename = getLoggingFilename(rank, "benchmark");
-    auto fileBenchmarkSink = std::make_shared<spdlog::sinks::basic_file_sink_st>(
+    auto fileBenchmarkSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
             loggingBenchmarkFilename.data()
     );
 
