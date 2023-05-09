@@ -20,7 +20,9 @@ namespace rma_stack::ref_counting
         class InnerStack
         {
         public:
-            InnerStack(MPI_Comm comm, MPI_Info info, int t_headRank, bool t_centralized, size_t t_elemsUpLimit,
+            static const int HEAD_RANK = 0;
+
+            InnerStack(MPI_Comm comm, MPI_Info info, bool t_centralized, size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger);
             bool push(const std::function<void(GlobalAddress)> &putDataCallback);
             void pop(const std::function<void(GlobalAddress)>& getDataCallback);
@@ -41,7 +43,6 @@ namespace rma_stack::ref_counting
 
             MPI_Win m_headWin{MPI_WIN_NULL};
             CountedNodePtr* m_pHeadCountedNodePtr{nullptr};
-            int m_headRank{-1};
             MPI_Aint m_headAddress{(MPI_Aint)MPI_BOTTOM};
             MPI_Win m_nodeWin{MPI_WIN_NULL};
             Node* m_pNodeArr{nullptr};

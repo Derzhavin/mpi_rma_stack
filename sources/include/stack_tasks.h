@@ -5,12 +5,14 @@
 #include <iostream>
 #include <type_traits>
 #include <chrono>
+#include <spdlog/spdlog.h>
 
 #include "IStack.h"
 #include "inner/InnerStack.h"
 #include "logging.h"
-
 using namespace std::literals::chrono_literals;
+
+void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, MPI_Comm comm);
 
 template<typename StackImpl>
 using EnableIfValueTypeIsInt = std::enable_if_t<std::is_same_v<typename StackImpl::ValueType, int>>;
@@ -48,7 +50,6 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
     }
 }
 
-void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, int comm);
 
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>

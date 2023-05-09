@@ -22,7 +22,6 @@ namespace rma_stack
     template<typename T>
     class RmaTreiberDecentralizedStack: public stack_interface::IStack<RmaTreiberDecentralizedStack<T>>
     {
-        static constexpr inline int CENTRAL_RANK{0};
         friend class stack_interface::IStack_traits<rma_stack::RmaTreiberDecentralizedStack<T>>;
     public:
         typedef typename stack_interface::IStack_traits<RmaTreiberDecentralizedStack>::ValueType ValueType;
@@ -280,7 +279,6 @@ namespace rma_stack
         ref_counting::InnerStack innerStack(
                 comm,
                 info,
-                CENTRAL_RANK,
                 false,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)

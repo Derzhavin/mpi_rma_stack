@@ -4,9 +4,9 @@
 
 #include "include/stack_tasks.h"
 
-void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, int comm)
+void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, MPI_Comm comm)
 {
-    SPDLOG_DEBUG("started 'runInnerStackSimplePushPopTask'");
+    spdlog::debug("started 'runInnerStackSimplePushPopTask'");
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
@@ -18,7 +18,9 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
         stack.push([&dataAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
             dataAddress = t_dataAddress;
         });
-        SPDLOG_DEBUG("received address by 'push' {}", dataAddress);
+        const auto r = dataAddress.rank;
+        const auto o = dataAddress.offset;
+        spdlog::debug("received address by 'push' ({}, {})", r, o);
     }
 
     for (int i = 0; i < pushedAddressesSize; ++i)
@@ -28,6 +30,8 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
         stack.pop([&dataAddress] (const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
             dataAddress = t_dataAddress;
         });
-        SPDLOG_DEBUG("brought back address by 'pop' {}", dataAddress);
+        const auto r = dataAddress.rank;
+        const auto o = dataAddress.offset;
+        spdlog::debug("received address by 'pop' ({}, {})", r, o);
     }
 }

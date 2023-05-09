@@ -22,7 +22,6 @@ namespace rma_stack
     template<typename T>
     class RmaTreiberCentralStack: public stack_interface::IStack<RmaTreiberCentralStack<T>>
     {
-        static constexpr inline int CENTRAL_RANK{0};
         friend class stack_interface::IStack_traits<rma_stack::RmaTreiberCentralStack<T>>;
     public:
         typedef typename stack_interface::IStack_traits<RmaTreiberCentralStack>::ValueType ValueType;
@@ -231,7 +230,7 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberCentralStack<T>::allocateProprietaryData(MPI_Comm comm)
     {
-        if (m_rank == CENTRAL_RANK)
+        if (m_rank == ref_counting::InnerStack::HEAD_RANK)
         {
             auto elemsUpLimit = m_innerStack.getElemsUpLimit();
             constexpr auto elemSize = sizeof(T);
@@ -255,7 +254,7 @@ namespace rma_stack
             }
             MPI_Get_address(m_pDataArr, &m_dataBaseAddress);
         }
-        auto mpiStatus = MPI_Bcast(&m_dataBaseAddress, 1, MPI_AINT, CENTRAL_RANK, comm);
+        auto mpiStatus = MPI_Bcast(&m_dataBaseAddress, 1, MPI_AINT, ref_counting::InnerStack::HEAD_RANK, comm);
         if (mpiStatus != MPI_SUCCESS)
             throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
     }
@@ -274,7 +273,6 @@ namespace rma_stack
         ref_counting::InnerStack innerStack(
                 comm,
                 info,
-                CENTRAL_RANK,
                 true,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)

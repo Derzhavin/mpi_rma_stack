@@ -20,8 +20,8 @@ namespace rma_stack::ref_counting
 
     private:
         // Second 8 bytes.
-        uint32_t            : 32 - 1;
         uint32_t m_acquired : 1;
+        uint32_t m_reserved : 32 - 1;
         int32_t m_internalCounter;
 
         // Third 8 bytes.

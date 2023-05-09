@@ -11,30 +11,22 @@ namespace rma_stack::ref_counting
 
     bool InnerStack::push(const std::function<void(GlobalAddress)> &putDataCallback)
     {
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d started 'tryPush'",
-                            m_rank
-        );
+        m_logger->trace("started 'push'");
 
-        auto nodeAddress = acquireNode(m_centralized ? m_headRank : m_rank);
+        auto nodeAddress = acquireNode(m_centralized ? HEAD_RANK : m_rank);
         if (isGlobalAddressDummy(nodeAddress))
         {
-            SPDLOG_LOGGER_TRACE(m_logger,
-                                "rank %d failed to find free node in 'tryPush'",
-                                m_rank
-            );
+            m_logger->trace("failed to find free node in 'tryPush'");
             return false;
         }
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d acquired free node in 'tryPush'",
-                            m_rank
-        );
+        {
+            const auto r = nodeAddress.rank;
+            const auto o = nodeAddress.offset;
+            m_logger->trace("acquired free node (rank - {}, offset - {}) in 'push'", r, o);
+        }
 
         putDataCallback(nodeAddress);
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d put data in 'tryPush'",
-                            m_rank
-        );
+        m_logger->trace("put data in 'push'");
 
         CountedNodePtr newCountedNodePtr;
         newCountedNodePtr.setRank(nodeAddress.rank);
@@ -43,57 +35,44 @@ namespace rma_stack::ref_counting
 
         CountedNodePtr resCountedNodePtr;
 
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d started new head pushing in 'push'",
-                            m_rank
+        m_logger->trace("started new head pushing in 'push'");
+
+        MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
+        MPI_Fetch_and_op(&resCountedNodePtr,
+                         &resCountedNodePtr,
+                         MPI_UINT64_T,
+                         HEAD_RANK,
+                         m_headAddress,
+                         MPI_NO_OP,
+                         m_headWin
         );
-
-        MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
-
-        {
-            MPI_Fetch_and_op(&resCountedNodePtr,
-                             &resCountedNodePtr,
-                             MPI_UINT64_T,
-                             m_headRank,
-                             m_headAddress,
-                             MPI_NO_OP,
-                             m_headWin
-            );
-            MPI_Win_flush(m_headRank, m_headWin);
-        }
+        MPI_Win_flush(HEAD_RANK, m_headWin);
+        m_logger->trace("fetched head (rank - {}, offset - {})", resCountedNodePtr.getRank(), resCountedNodePtr.getOffset());
 
         do
         {
             *m_pHeadCountedNodePtr = resCountedNodePtr;
-
             MPI_Compare_and_swap(&newCountedNodePtr,
                                  m_pHeadCountedNodePtr,
                                  &resCountedNodePtr,
                                  MPI_UINT64_T,
-                                 m_headRank,
+                                 HEAD_RANK,
                                  m_headAddress,
                                  m_headWin
             );
-            MPI_Win_flush(m_headRank, m_headWin);
-            SPDLOG_LOGGER_TRACE(m_logger,
-                                "rank %d executed CAS in 'push'",
-                                m_rank
-            );
+            MPI_Win_flush(HEAD_RANK, m_headWin);
+            m_logger->trace("executed CAS in 'push'");
         }
         while (resCountedNodePtr != *m_pHeadCountedNodePtr);
+        MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-        MPI_Win_unlock(m_headRank, m_headWin);
-
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d finished 'push'",
-                            m_rank
-        );
+        m_logger->trace("finished 'push'");
         return true;
     }
 
     GlobalAddress InnerStack::acquireNode(int rank) const
     {
-        GlobalAddress nodeGlobalAddress = {DummyRank, 0, 0};
+        GlobalAddress nodeGlobalAddress = {0, DummyRank, 0};
 
         if (!isValidRank(rank))
             return nodeGlobalAddress;
@@ -105,6 +84,7 @@ namespace rma_stack::ref_counting
         for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(m_elemsUpLimit); ++i)
         {
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
+            assert(nodeSize == 16);
             const auto nodeDisplacement = i * nodeSize;
             const MPI_Aint nodeOffset = MPI_Aint_add(m_pNodeArrAddresses[rank], nodeDisplacement);
 
@@ -120,8 +100,9 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(rank, m_nodeWin);
             MPI_Win_unlock(rank, m_nodeWin);
 
+            m_logger->trace("resAcquiredField = {} in 'acquireNode'", resAcquiredField);
             assert(resAcquiredField == 0 || resAcquiredField == 1);
-            if (resAcquiredField)
+            if (!resAcquiredField)
             {
                 nodeGlobalAddress.rank = rank;
                 nodeGlobalAddress.offset = nodeOffset;
@@ -158,17 +139,17 @@ namespace rma_stack::ref_counting
     void InnerStack::pop(const std::function<void(GlobalAddress)>& getDataCallback)
     {
         {
-            MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
             MPI_Fetch_and_op(&m_pHeadCountedNodePtr,
                              &m_pHeadCountedNodePtr,
                              MPI_UINT64_T,
-                             m_headRank,
+                             HEAD_RANK,
                              m_headAddress,
                              MPI_NO_OP,
                              m_headWin
             );
-            MPI_Win_flush(m_headRank, m_headWin);
-            MPI_Win_unlock(m_headRank, m_headWin);
+            MPI_Win_flush(HEAD_RANK, m_headWin);
+            MPI_Win_unlock(HEAD_RANK, m_headWin);
         }
 
         CountedNodePtr oldHeadCountedNodePtr = *m_pHeadCountedNodePtr;
@@ -207,17 +188,17 @@ namespace rma_stack::ref_counting
             auto& newCountedNodePtr = node.getCountedNodePtr();
             CountedNodePtr resCountedNodePtr;
 
-            MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
             MPI_Compare_and_swap(&newCountedNodePtr,
                                  &oldHeadCountedNodePtr,
                                  &resCountedNodePtr,
                                  MPI_UINT64_T,
-                                 m_headRank,
+                                 HEAD_RANK,
                                  m_headAddress,
                                  m_headWin
             );
-            MPI_Win_flush(m_headRank, m_headWin);
-            MPI_Win_unlock(m_headRank, m_headWin);
+            MPI_Win_flush(HEAD_RANK, m_headWin);
+            MPI_Win_unlock(HEAD_RANK, m_headWin);
 
             if (resCountedNodePtr == oldHeadCountedNodePtr)
             {
@@ -282,12 +263,9 @@ namespace rma_stack::ref_counting
     {
         CountedNodePtr newCountedNodePtr;
 
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d started 'increaseHeadCount'",
-                            m_rank
-        );
+        m_logger->trace("started 'increaseHeadCount'");
 
-        MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
+        MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
         do
         {
             newCountedNodePtr = oldCountedNodePtr;
@@ -296,33 +274,26 @@ namespace rma_stack::ref_counting
                                  m_pHeadCountedNodePtr,
                                  &oldCountedNodePtr,
                                  MPI_UINT64_T,
-                                 m_headRank,
+                                 HEAD_RANK,
                                  0,
                                  m_headWin
             );
-            MPI_Win_flush(m_headRank, m_headWin);
-            SPDLOG_LOGGER_TRACE(m_logger,
-                                "rank %d executed CAS in 'increaseHeadCount'",
-                                m_rank
-            );
+            MPI_Win_flush(HEAD_RANK, m_headWin);
+            m_logger->trace("executed CAS in 'increaseHeadCount'");
         }
         while (oldCountedNodePtr != *m_pHeadCountedNodePtr);
-        MPI_Win_unlock(m_headRank, m_headWin);
+        MPI_Win_unlock(HEAD_RANK, m_headWin);
 
         oldCountedNodePtr.setExternalCounter(newCountedNodePtr.getExternalCounter());
 
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d finished 'increaseHeadCount'",
-                            m_rank
-        );
+        m_logger->trace("finished 'increaseHeadCount'");
     }
 
-    InnerStack::InnerStack(MPI_Comm comm, MPI_Info info, int t_headRank, bool t_centralized, size_t t_elemsUpLimit,
+    InnerStack::InnerStack(MPI_Comm comm, MPI_Info info, bool t_centralized, size_t t_elemsUpLimit,
                            std::shared_ptr<spdlog::logger> t_logger)
     :
     m_elemsUpLimit(t_elemsUpLimit),
     m_centralized(t_centralized),
-    m_headRank(t_headRank),
     m_logger(std::move(t_logger))
     {
         m_logger->trace("getting rank");
@@ -345,6 +316,7 @@ namespace rma_stack::ref_counting
         allocateProprietaryData(comm);
         initStackWithDummy();
         MPI_Barrier(comm);
+        m_logger->trace("finished InnerStack construction");
     }
 
     void InnerStack::release()
@@ -372,7 +344,7 @@ namespace rma_stack::ref_counting
 
             m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
 
-            if (m_rank == m_headRank)
+            if (m_rank == HEAD_RANK)
             {
                 constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
                 const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
@@ -401,7 +373,7 @@ namespace rma_stack::ref_counting
             m_logger->trace("allocated node proprietary data");
 
             m_logger->trace("started to broadcast node arr addresses");
-            auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, m_headRank, comm);
+            auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, HEAD_RANK, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast node array address", __FILE__, __func__ , __LINE__, mpiStatus);
             m_logger->trace("finished broadcasting node arr addresses");
@@ -454,7 +426,7 @@ namespace rma_stack::ref_counting
             m_logger->trace("finished broadcasting node arr addresses");
         }
 
-        if (m_rank == m_headRank)
+        if (m_rank == HEAD_RANK)
         {
             m_logger->trace("started to allocate head data");
 
@@ -482,7 +454,7 @@ namespace rma_stack::ref_counting
 
         {
             m_logger->trace("started to broadcast head address");
-            auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, m_headRank, comm);
+            auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, HEAD_RANK, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
             m_logger->trace("finished broadcasting head address");
@@ -491,23 +463,22 @@ namespace rma_stack::ref_counting
 
     void InnerStack::initStackWithDummy() const
     {
-        if (m_rank == m_headRank)
+        if (m_rank == HEAD_RANK)
         {
             m_logger->trace("started to initialize head with dummy");
-            MPI_Win_lock(MPI_LOCK_SHARED, m_headRank, 0, m_headWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
             CountedNodePtr dummyCountedNodePtr;
-            dummyCountedNodePtr.setRank(1);
             MPI_Put(&dummyCountedNodePtr,
                     1,
                     MPI_UINT64_T,
-                    m_headRank,
+                    HEAD_RANK,
                     m_headAddress,
                     1,
                     MPI_UINT64_T,
                     m_headWin
             );
-            MPI_Win_flush(m_headRank, m_headWin);
-            MPI_Win_unlock(m_headRank, m_headWin);
+            MPI_Win_flush(HEAD_RANK, m_headWin);
+            MPI_Win_unlock(HEAD_RANK, m_headWin);
             m_logger->trace("initialized head with dummy");
         }
     }

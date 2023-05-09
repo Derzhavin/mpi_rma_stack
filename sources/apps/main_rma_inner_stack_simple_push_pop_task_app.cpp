@@ -2,7 +2,6 @@
 // Created by denis on 22.01.23.
 //
 
-#include <iostream>
 #include <chrono>
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/spdlog.h>
@@ -55,12 +54,11 @@ int main(int argc, char *argv[])
         auto innerStack = rma_stack::ref_counting::InnerStack(
                 comm,
                 info,
-                0,
                 true,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)
         );
-        runInnerStackSimplePushPopTask(innerStack, 0);
+        runInnerStackSimplePushPopTask(innerStack, comm);
         innerStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)
