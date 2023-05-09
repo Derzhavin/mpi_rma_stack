@@ -25,7 +25,9 @@ namespace rma_stack::ref_counting
         int32_t m_internalCounter;
 
         // Third 8 bytes.
-        CountedNodePtr m_countedNodePtr;
+        CountedNodePtr m_countedNodePtrNext;
+    public:
+        void setCountedNodePtrNext(const CountedNodePtr &t_countedNodePtr);
     };
 } // rma_stack
 

@@ -20,6 +20,11 @@ namespace rma_stack::ref_counting
 
     const rma_stack::ref_counting::CountedNodePtr &Node::getCountedNodePtr() const
     {
-        return m_countedNodePtr;
+        return m_countedNodePtrNext;
+    }
+
+    void Node::setCountedNodePtrNext(const CountedNodePtr &t_countedNodePtr)
+    {
+        m_countedNodePtrNext = t_countedNodePtr;
     }
 } // rma_stack
