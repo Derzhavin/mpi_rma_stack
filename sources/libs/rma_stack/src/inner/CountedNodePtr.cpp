@@ -52,7 +52,7 @@ namespace rma_stack::ref_counting
     }
 
     bool CountedNodePtr::setOffset(uint64_t t_offset) {
-        if (t_offset < (1ul << OffsetBitsLimit))
+        if (t_offset + 1> (1ul << OffsetBitsLimit))
             return false;
 
         m_offset = t_offset;

@@ -82,10 +82,10 @@ namespace rma_stack
 
         MPI_Free_mem(m_pDataArr);
         m_pDataArr = nullptr;
-        SPDLOG_LOGGER_TRACE(m_logger, "freed up data arr RMA memory");
+        m_logger->trace("freed up data arr RMA memory");
 
         MPI_Win_free(&m_dataWin);
-        SPDLOG_LOGGER_TRACE(m_logger, "freed up data win RMA memory");
+        m_logger->trace("freed up data win RMA memory");
     }
 
     template<typename T>
