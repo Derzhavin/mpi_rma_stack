@@ -99,10 +99,14 @@ namespace rma_stack::ref_counting
 
     GlobalAddress InnerStack::acquireNode(int rank) const
     {
+        m_logger->trace("started 'acquireNode'");
         GlobalAddress nodeGlobalAddress = {0, DummyRank, 0};
 
         if (!isValidRank(rank))
+        {
+            m_logger->trace("finished 'acquireNode'");
             return nodeGlobalAddress;
+        }
 
         uint32_t newAcquiredField{1};
         uint32_t oldAcquiredField{0};
@@ -111,7 +115,6 @@ namespace rma_stack::ref_counting
         for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(m_elemsUpLimit); ++i)
         {
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
-            assert(nodeSize == 16);
             const auto nodeDisplacement = i * nodeSize;
             const MPI_Aint nodeOffset = MPI_Aint_add(m_pNodeArrAddresses[rank], nodeDisplacement);
 
@@ -140,6 +143,7 @@ namespace rma_stack::ref_counting
                 break;
             }
         }
+        m_logger->trace("finished 'acquireNode'");
         return nodeGlobalAddress;
     }
 
@@ -489,13 +493,12 @@ namespace rma_stack::ref_counting
 
             for (int i = 0; i < procNum; ++i)
             {
-                if (i == m_rank)
-                {
-                    auto mpiStatus = MPI_Bcast(&m_pNodeArrAddresses[i], 1, MPI_AINT, m_rank, comm);
-                    if (mpiStatus != MPI_SUCCESS)
-                        throw custom_mpi::MpiException("failed to broadcast node array base address", __FILE__, __func__ , __LINE__, mpiStatus);
-                }
+                auto mpiStatus = MPI_Bcast(&m_pNodeArrAddresses[i], 1, MPI_AINT, i, comm);
+                if (mpiStatus != MPI_SUCCESS)
+                    throw custom_mpi::MpiException("failed to broadcast node array base address", __FILE__, __func__ , __LINE__, mpiStatus);
+                m_logger->trace("m_pNodeArrAddresses[i] = {}", m_pNodeArrAddresses[i]);
             }
+
             m_logger->trace("finished broadcasting node arr addresses");
         }
 
