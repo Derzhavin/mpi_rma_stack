@@ -26,17 +26,18 @@ namespace rma_stack
     public:
         typedef typename stack_interface::IStack_traits<RmaTreiberDecentralizedStack>::ValueType ValueType;
 
-        explicit RmaTreiberDecentralizedStack(MPI_Comm comm, const std::chrono::nanoseconds &t_rBackoffMinDelay,
-                                        const std::chrono::nanoseconds &t_rBackoffMaxDelay,
-                                        ref_counting::InnerStack &&t_innerStack,
-                                        std::shared_ptr<spdlog::logger> t_logger);
+        explicit RmaTreiberDecentralizedStack(MPI_Comm comm, MPI_Info info,
+                                              const std::chrono::nanoseconds &t_rBackoffMinDelay,
+                                              const std::chrono::nanoseconds &t_rBackoffMaxDelay,
+                                              ref_counting::InnerStack &&t_innerStack,
+                                              std::shared_ptr<spdlog::logger> t_logger);
         static RmaTreiberDecentralizedStack <T> create(
                 MPI_Comm comm,
                 MPI_Info info,
                 const std::chrono::nanoseconds &t_rBackoffMinDelay,
                 const std::chrono::nanoseconds &t_rBackoffMaxDelay,
                 int elemsUpLimit,
-                std::shared_ptr<spdlog::sinks::sink> logger_sink
+                std::shared_ptr<spdlog::sinks::sink> loggerSink
         );
 
         RmaTreiberDecentralizedStack(RmaTreiberDecentralizedStack&) = delete;
@@ -76,7 +77,6 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberDecentralizedStack<T>::release()
     {
-        while (!popImpl());
         m_innerStack.release();
 
         MPI_Free_mem(m_pDataArr);
@@ -88,10 +88,11 @@ namespace rma_stack
     }
 
     template<typename T>
-    RmaTreiberDecentralizedStack<T>::RmaTreiberDecentralizedStack(MPI_Comm comm, const std::chrono::nanoseconds &t_rBackoffMinDelay,
-                                                      const std::chrono::nanoseconds &t_rBackoffMaxDelay,
-                                                      ref_counting::InnerStack &&t_innerStack,
-                                                      std::shared_ptr<spdlog::logger> t_logger)
+    RmaTreiberDecentralizedStack<T>::RmaTreiberDecentralizedStack(MPI_Comm comm, MPI_Info info,
+                                                                  const std::chrono::nanoseconds &t_rBackoffMinDelay,
+                                                                  const std::chrono::nanoseconds &t_rBackoffMaxDelay,
+                                                                  ref_counting::InnerStack &&t_innerStack,
+                                                                  std::shared_ptr<spdlog::logger> t_logger)
             :
             backoffMinDelay(t_rBackoffMinDelay),
             backoffMaxDelay(t_rBackoffMaxDelay),
@@ -99,6 +100,12 @@ namespace rma_stack
             m_logger(std::move(t_logger))
     {
         MPI_Comm_rank(comm, &m_rank);
+
+        {
+            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_dataWin);
+            if (mpiStatus != MPI_SUCCESS)
+                throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
+        }
 
         allocateProprietaryData(comm);
     }
@@ -118,10 +125,7 @@ namespace rma_stack
                 backoff.backoff();
             }
         }
-        SPDLOG_LOGGER_TRACE(m_logger,
-                            "rank %d finished 'pushImpl'",
-                            m_rank
-        );
+        m_logger->trace("rank %d finished 'pushImpl'", m_rank);
     }
 
     template<typename T>
@@ -193,7 +197,7 @@ namespace rma_stack
         if (!res)
             return false;
 
-        SPDLOG_LOGGER_TRACE(m_logger,
+        m_logger->trace(
                             "rank %d finished 'tryPush'",
                             m_rank
         );
@@ -256,12 +260,9 @@ namespace rma_stack
 
         for (int i = 0; i < procNum; ++i)
         {
-            if (i == m_rank)
-            {
-                auto mpiStatus = MPI_Bcast(&m_pDataBaseAddresses[i], 1, MPI_AINT, m_rank, comm);
-                if (mpiStatus != MPI_SUCCESS)
-                    throw custom_mpi::MpiException("failed to broadcast data array base address", __FILE__, __func__ , __LINE__, mpiStatus);
-            }
+            auto mpiStatus = MPI_Bcast(&m_pDataBaseAddresses[i], 1, MPI_AINT, i, comm);
+            if (mpiStatus != MPI_SUCCESS)
+                throw custom_mpi::MpiException("failed to broadcast data array base address", __FILE__, __func__ , __LINE__, mpiStatus);
         }
     }
 
@@ -270,8 +271,8 @@ namespace rma_stack
                                                                 const std::chrono::nanoseconds &t_rBackoffMinDelay,
                                                                 const std::chrono::nanoseconds &t_rBackoffMaxDelay,
                                                                 int elemsUpLimit,
-                                                                std::shared_ptr<spdlog::sinks::sink> logger_sink) {
-        auto pInnerStackLogger = std::make_shared<spdlog::logger>("InnerStack", logger_sink);
+                                                                std::shared_ptr<spdlog::sinks::sink> loggerSink) {
+        auto pInnerStackLogger = std::make_shared<spdlog::logger>("InnerStack", loggerSink);
         spdlog::register_logger(pInnerStackLogger);
         pInnerStackLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
         pInnerStackLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
@@ -284,12 +285,22 @@ namespace rma_stack
                 std::move(pInnerStackLogger)
         );
 
+        auto pOuterStackLogger = std::make_shared<spdlog::logger>("RmaTreiberCentralStack", loggerSink);
+        spdlog::register_logger(pOuterStackLogger);
+        pOuterStackLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+        pOuterStackLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+
         RmaTreiberDecentralizedStack<T> stack(
                 comm,
+                info,
                 t_rBackoffMinDelay,
                 t_rBackoffMaxDelay,
-                std::move(innerStack), std::shared_ptr<spdlog::logger>());
+                std::move(innerStack),
+                std::move(pOuterStackLogger)
+        );
 
+        MPI_Barrier(comm);
+        stack.m_logger->trace("finished RmaTreiberDecentralizedStack construction");
         return stack;
     }
 } // rma_stack

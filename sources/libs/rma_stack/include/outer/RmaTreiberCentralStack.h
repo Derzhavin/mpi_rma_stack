@@ -300,7 +300,7 @@ namespace rma_stack
         );
 
         MPI_Barrier(comm);
-        stack.m_logger->trace("finished RmaCentralStack construction");
+        stack.m_logger->trace("finished RmaTreiberCentralStack construction");
         return stack;
     }
 } // rma_stack
