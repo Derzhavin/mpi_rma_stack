@@ -6,9 +6,9 @@
 
 namespace rma_stack::ref_counting
 {
-    int64_t CountedNodePtr::getExternalCounter() const
+    uint64_t CountedNodePtr::getExternalCounter() const
     {
-        return static_cast<int64_t>(m_externalCounter);
+        return m_externalCounter;
     }
 
     uint64_t CountedNodePtr::getRank() const

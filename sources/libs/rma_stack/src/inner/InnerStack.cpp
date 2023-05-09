@@ -128,7 +128,7 @@ namespace rma_stack::ref_counting
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
-            m_logger->trace("started to release node (rank - {}, offset - {}", r, o);
+            m_logger->trace("started to release node (rank - {}, offset - {})", r, o);
         }
         MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodeWin);
         do {
@@ -147,7 +147,7 @@ namespace rma_stack::ref_counting
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
-            m_logger->trace("released node (rank - {}, offset - {}", r, o);
+            m_logger->trace("released node (rank - {}, offset - {})", r, o);
         }
     }
 
@@ -281,7 +281,7 @@ namespace rma_stack::ref_counting
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
         do
         {
-            newCountedNodePtr = oldCountedNodePtr;
+            newCountedNodePtr = oldCountedNodePtr = resCountedNodePtr;
             newCountedNodePtr.incExternalCounter();
             MPI_Compare_and_swap(&newCountedNodePtr,
                                  &oldCountedNodePtr,
@@ -293,6 +293,13 @@ namespace rma_stack::ref_counting
             );
             MPI_Win_flush(HEAD_RANK, m_headWin);
             m_logger->trace("executed CAS in 'increaseHeadCount'");
+            m_logger->trace("oldCountedNodePtr is (rank - {}, offset - {}), resCountedNodePtr is (rank - {}, offset - {}) in "
+                            "'increaseHeadCount'",
+                            oldCountedNodePtr.getRank(),
+                            oldCountedNodePtr.getOffset(),
+                            resCountedNodePtr.getRank(),
+                            resCountedNodePtr.getOffset()
+            );
         }
         while (oldCountedNodePtr != resCountedNodePtr);
         MPI_Win_unlock(HEAD_RANK, m_headWin);
