@@ -59,6 +59,8 @@ int main(int argc, char *argv[])
                 std::move(pInnerStackLogger)
         );
         runInnerStackSimplePushPopTask(innerStack, comm);
+
+        MPI_Barrier(comm);
         innerStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)
@@ -71,7 +73,7 @@ int main(int argc, char *argv[])
         SPDLOG_INFO("Unexpected exception: "s + ex.what());
         returnCode = EXIT_FAILURE;
     }
-
     MPI_Finalize();
+    SPDLOG_INFO("finished program");
     return returnCode;
 }

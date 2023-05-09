@@ -69,5 +69,6 @@ int main(int argc, char *argv[])
     }
 
     MPI_Finalize();
+    SPDLOG_INFO("finished program");
     return returnCode;
 }
