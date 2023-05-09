@@ -2,7 +2,7 @@
 // Created by denis on 22.01.23.
 //
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dup_filter_sink.h>
@@ -55,6 +55,9 @@ int main(int argc, char *argv[])
                 duplicatingFilterSink
         );
         runStackSimpleIntPushPopTask(rmaTreiberStack, comm);
+
+        MPI_Barrier(comm);
+
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)

@@ -16,13 +16,13 @@ namespace rma_stack::ref_counting
         auto nodeAddress = acquireNode(m_centralized ? HEAD_RANK : m_rank);
         if (isGlobalAddressDummy(nodeAddress))
         {
-            m_logger->trace("failed to find free countedNodePtrNext in 'tryPush'");
+            m_logger->trace("failed to find free node in 'push'");
             return false;
         }
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
-            m_logger->trace("acquired free countedNodePtrNext (rank - {}, offset - {}) in 'push'", r, o);
+            m_logger->trace("acquired free node (rank - {}, offset - {}) in 'push'", r, o);
         }
 
         putDataCallback(nodeAddress);
@@ -130,7 +130,7 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(rank, m_nodeWin);
             MPI_Win_unlock(rank, m_nodeWin);
 
-            m_logger->trace("resAcquiredField = {} of (rank - {}, offset - {})) in 'acquireNode'",
+            m_logger->trace("resAcquiredField = {} of (rank - {}, offset - {}) in 'acquireNode'",
                             resAcquiredField,
                             rank,
                             i
@@ -496,7 +496,7 @@ namespace rma_stack::ref_counting
                 auto mpiStatus = MPI_Bcast(&m_pNodeArrAddresses[i], 1, MPI_AINT, i, comm);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to broadcast node array base address", __FILE__, __func__ , __LINE__, mpiStatus);
-                m_logger->trace("m_pNodeArrAddresses[i] = {}", m_pNodeArrAddresses[i]);
+                m_logger->trace("m_pNodeArrAddresses[{}] = {}", i, m_pNodeArrAddresses[i]);
             }
 
             m_logger->trace("finished broadcasting node arr addresses");
