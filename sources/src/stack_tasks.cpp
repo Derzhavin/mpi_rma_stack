@@ -13,13 +13,13 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
     const int pushedAddressesSize{5};
     rma_stack::ref_counting::GlobalAddress pushedAddresses[pushedAddressesSize];
 
-    for (auto& dataAddress: pushedAddresses)
+    for (auto & pushedAddress : pushedAddresses)
     {
-        stack.push([&dataAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
-            dataAddress = t_dataAddress;
+        stack.push([&pushedAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
+            pushedAddress = t_dataAddress;
         });
-        const auto r = dataAddress.rank;
-        const auto o = dataAddress.offset;
+        const auto r = pushedAddress.rank;
+        const auto o = pushedAddress.offset;
         spdlog::debug("received address by 'push' ({}, {})", r, o);
     }
 

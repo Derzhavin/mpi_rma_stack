@@ -284,11 +284,11 @@ namespace rma_stack::ref_counting
             newCountedNodePtr = oldCountedNodePtr;
             newCountedNodePtr.incExternalCounter();
             MPI_Compare_and_swap(&newCountedNodePtr,
-                                 &resCountedNodePtr,
                                  &oldCountedNodePtr,
+                                 &resCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
-                                 0,
+                                 m_headAddress,
                                  m_headWin
             );
             MPI_Win_flush(HEAD_RANK, m_headWin);
