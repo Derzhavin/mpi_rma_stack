@@ -4,11 +4,11 @@
 
 #include <thread>
 
-#include "include/outer/Backoff.h"
+#include "include/outer/ExponentialBackoff.h"
 
 namespace rma_stack
 {
-    Backoff::Backoff(const std::chrono::nanoseconds &t_rMinDelayNs, const std::chrono::nanoseconds &t_rMaxDelayNs)
+    ExponentialBackoff::ExponentialBackoff(const std::chrono::nanoseconds &t_rMinDelayNs, const std::chrono::nanoseconds &t_rMaxDelayNs)
     :
     m_maxDelayNs(t_rMaxDelayNs),
     m_limitDelayInt(0),
@@ -29,7 +29,7 @@ namespace rma_stack
         m_limitDelayInt = static_cast<int>(t_rMinDelayNs.count());
     }
 
-    void Backoff::backoff()
+    void ExponentialBackoff::backoff()
     {
         const auto delayInt = std::uniform_int_distribution<int>(0, m_limitDelayInt)(m_randomEngine);
         const auto delayNs = std::chrono::nanoseconds (delayInt);

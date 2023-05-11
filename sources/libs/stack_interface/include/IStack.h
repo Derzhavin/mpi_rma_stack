@@ -22,9 +22,9 @@ namespace stack_interface
         {
             StackTraitsImpl::pushImpl(impl(), t_rValue);
         }
-        ValueType pop()
+        void pop(ValueType &rValue, const ValueType &rDefaultValue)
         {
-            return StackTraitsImpl::popImpl(impl());
+            StackTraitsImpl::popImpl(impl(), rValue, rDefaultValue);
         }
         ValueType& top()
         {

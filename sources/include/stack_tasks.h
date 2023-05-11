@@ -45,7 +45,9 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
 
     for (int i = 0; i < elemsSize; ++i)
     {
-        int elem = stack.pop();
+        int elem;
+        int defaultElem{-1};
+        stack.pop(elem, defaultElem);
         SPDLOG_DEBUG("brought back elem by 'pop' {}", elem);
     }
 }

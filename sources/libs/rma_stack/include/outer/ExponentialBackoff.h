@@ -2,18 +2,18 @@
 // Created by denis on 19.02.23.
 //
 
-#ifndef SOURCES_BACKOFF_H
-#define SOURCES_BACKOFF_H
+#ifndef SOURCES_EXPONENTIALBACKOFF_H
+#define SOURCES_EXPONENTIALBACKOFF_H
 
 #include <chrono>
 #include <random>
 
 namespace rma_stack
 {
-    class Backoff
+    class ExponentialBackoff
     {
     public:
-        Backoff(const std::chrono::nanoseconds &t_rMinDelayNs, const std::chrono::nanoseconds &t_rMaxDelayNs);
+        ExponentialBackoff(const std::chrono::nanoseconds &t_rMinDelayNs, const std::chrono::nanoseconds &t_rMaxDelayNs);
 
         void backoff();
 
@@ -26,4 +26,4 @@ namespace rma_stack
 
 } // rma_stack
 
-#endif //SOURCES_BACKOFF_H
+#endif //SOURCES_EXPONENTIALBACKOFF_H

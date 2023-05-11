@@ -24,15 +24,16 @@ namespace rma_stack::ref_counting
 
             InnerStack(MPI_Comm comm, MPI_Info info, bool t_centralized, size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger);
-            bool push(const std::function<void(GlobalAddress)> &putDataCallback);
-            void pop(const std::function<void(GlobalAddress)>& getDataCallback);
+            void push(const std::function<void(GlobalAddress)> &putDataCallback,
+                      const std::function<void()> &backoffCallback);
+            void pop(const std::function<void(GlobalAddress)> &getDataCallback,
+                     const std::function<void()> &backoffCallback);
             void release();
             [[nodiscard]] size_t getElemsUpLimit() const;
 
         private:
-            void allocateProprietaryData(MPI_Comm comm);
-            void increaseHeadCount(CountedNodePtr& oldCountedNodePtr);
-            void initStackWithDummy() const;
+            void initRemoteAccessMemory(MPI_Comm comm, MPI_Info info);
+            void increaseHeadCount(CountedNodePtr& oldHeadCountedNodePtr);
             [[nodiscard]] GlobalAddress acquireNode(int rank) const;
 
             void releaseNode(GlobalAddress nodeAddress) const;
@@ -44,9 +45,9 @@ namespace rma_stack::ref_counting
             MPI_Win m_headWin{MPI_WIN_NULL};
             CountedNodePtr* m_pHeadCountedNodePtr{nullptr};
             MPI_Aint m_headAddress{(MPI_Aint)MPI_BOTTOM};
-            MPI_Win m_nodeWin{MPI_WIN_NULL};
-            Node* m_pNodeArr{nullptr};
-            std::unique_ptr<MPI_Aint[]> m_pNodeArrAddresses;
+            MPI_Win m_nodesWin{MPI_WIN_NULL};
+            Node* m_pNodesArr{nullptr};
+            std::unique_ptr<MPI_Aint[]> m_pBaseNodeArrAddresses;
 
             std::shared_ptr<spdlog::logger> m_logger;
         };

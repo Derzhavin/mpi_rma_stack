@@ -9,7 +9,8 @@ namespace rma_stack::ref_counting
 {
     namespace custom_mpi = custom_mpi_extensions;
 
-    bool InnerStack::push(const std::function<void(GlobalAddress)> &putDataCallback)
+    void InnerStack::push(const std::function<void(GlobalAddress)> &putDataCallback,
+                          const std::function<void()> &backoffCallback)
     {
         m_logger->trace("started 'push'");
 
@@ -17,7 +18,7 @@ namespace rma_stack::ref_counting
         if (isGlobalAddressDummy(nodeAddress))
         {
             m_logger->trace("failed to find free node in 'push'");
-            return false;
+            return;
         }
         {
             const auto r = nodeAddress.rank;
@@ -28,11 +29,11 @@ namespace rma_stack::ref_counting
         putDataCallback(nodeAddress);
         m_logger->trace("put data in 'push'");
 
-        CountedNodePtr resCountedNodePtr;
+        CountedNodePtr resHeadCountedNodePtr;
 
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-        MPI_Fetch_and_op(&resCountedNodePtr,
-                         &resCountedNodePtr,
+        MPI_Fetch_and_op(nullptr,
+                         &resHeadCountedNodePtr,
                          MPI_UINT64_T,
                          HEAD_RANK,
                          m_headAddress,
@@ -42,7 +43,7 @@ namespace rma_stack::ref_counting
         MPI_Win_flush(HEAD_RANK, m_headWin);
         MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-        m_logger->trace("fetched head (rank - {}, offset - {})", resCountedNodePtr.getRank(), resCountedNodePtr.getOffset());
+        m_logger->trace("fetched head (rank - {}, offset - {})", resHeadCountedNodePtr.getRank(), resHeadCountedNodePtr.getOffset());
 
         m_logger->trace("started new head pushing in 'push'");
 
@@ -51,18 +52,18 @@ namespace rma_stack::ref_counting
         newCountedNodePtr.setOffset(nodeAddress.offset);
         newCountedNodePtr.incExternalCounter();
 
-        CountedNodePtr oldCountedNodePtr;
+        CountedNodePtr oldHeadCountedNodePtr;
         CountedNodePtr countedNodePtrNext;
 
         constexpr auto nodeSize                     = sizeof(Node);
         const auto countedNodePtrNextDisplacement   = static_cast<MPI_Aint>(nodeSize * nodeAddress.offset) + 8;
-        const MPI_Aint countedNodePtrNextOffset     = MPI_Aint_add(m_pNodeArrAddresses[nodeAddress.rank], countedNodePtrNextDisplacement);
+        const MPI_Aint countedNodePtrNextOffset     = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank], countedNodePtrNextDisplacement);
 
         do
         {
-            countedNodePtrNext = resCountedNodePtr;
+            countedNodePtrNext = resHeadCountedNodePtr;
 
-            MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodeWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodesWin);
             MPI_Put(&countedNodePtrNext,
                     1,
                     MPI_UINT64_T,
@@ -70,17 +71,17 @@ namespace rma_stack::ref_counting
                     countedNodePtrNextOffset,
                     1,
                     MPI_UINT64_T,
-                    m_nodeWin
+                    m_nodesWin
             );
-            MPI_Win_flush(nodeAddress.rank, m_nodeWin);
-            MPI_Win_unlock(nodeAddress.rank, m_nodeWin);
+            MPI_Win_flush(nodeAddress.rank, m_nodesWin);
+            MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
 
-            oldCountedNodePtr = resCountedNodePtr;
+            oldHeadCountedNodePtr = resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
             MPI_Compare_and_swap(&newCountedNodePtr,
-                                 &oldCountedNodePtr,
-                                 &resCountedNodePtr,
+                                 &oldHeadCountedNodePtr,
+                                 &resHeadCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
                                  m_headAddress,
@@ -89,12 +90,13 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-            m_logger->trace("executed CAS in 'push'");
+            m_logger->trace("started to execute backoff callback");
+            backoffCallback();
+            m_logger->trace("executed backoff callback");
         }
-        while (resCountedNodePtr != oldCountedNodePtr);
+        while (resHeadCountedNodePtr != oldHeadCountedNodePtr);
 
         m_logger->trace("finished 'push'");
-        return true;
     }
 
     GlobalAddress InnerStack::acquireNode(int rank) const
@@ -116,19 +118,19 @@ namespace rma_stack::ref_counting
         {
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
             const auto nodeDisplacement = i * nodeSize;
-            const MPI_Aint nodeOffset = MPI_Aint_add(m_pNodeArrAddresses[rank], nodeDisplacement);
+            const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[rank], nodeDisplacement);
 
-            MPI_Win_lock(MPI_LOCK_SHARED, rank, 0, m_nodeWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, rank, 0, m_nodesWin);
             MPI_Compare_and_swap(&newAcquiredField,
                                  &oldAcquiredField,
                                  &resAcquiredField,
                                  MPI_UINT32_T,
                                  rank,
                                  nodeOffset,
-                                 m_nodeWin
+                                 m_nodesWin
             );
-            MPI_Win_flush(rank, m_nodeWin);
-            MPI_Win_unlock(rank, m_nodeWin);
+            MPI_Win_flush(rank, m_nodesWin);
+            MPI_Win_unlock(rank, m_nodesWin);
 
             m_logger->trace("resAcquiredField = {} of (rank - {}, offset - {}) in 'acquireNode'",
                             resAcquiredField,
@@ -151,7 +153,7 @@ namespace rma_stack::ref_counting
     {
         constexpr auto nodeSize = sizeof(Node);
         const auto nodeDisplacement = static_cast<MPI_Aint>(nodeAddress.offset * nodeSize);
-        const MPI_Aint nodeOffset = MPI_Aint_add(m_pNodeArrAddresses[nodeAddress.rank],
+        const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank],
                                                  nodeDisplacement
         );
         int32_t acquiredField{1};
@@ -160,17 +162,17 @@ namespace rma_stack::ref_counting
             const auto o = nodeAddress.offset;
             m_logger->trace("started to release node (rank - {}, offset - {})", r, o);
         }
-        MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodeWin);
+        MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodesWin);
         MPI_Fetch_and_op(&acquiredField,
                          &acquiredField,
                          MPI_UINT32_T,
                          nodeAddress.rank,
                          nodeOffset,
                          MPI_REPLACE,
-                         m_nodeWin
+                         m_nodesWin
         );
-        MPI_Win_flush(nodeAddress.rank, m_nodeWin);
-        MPI_Win_unlock(nodeAddress.rank, m_nodeWin);
+        MPI_Win_flush(nodeAddress.rank, m_nodesWin);
+        MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
@@ -178,14 +180,15 @@ namespace rma_stack::ref_counting
         }
     }
 
-    void InnerStack::pop(const std::function<void(GlobalAddress)>& getDataCallback)
+    void InnerStack::pop(const std::function<void(GlobalAddress)> &getDataCallback,
+                         const std::function<void()> &backoffCallback)
     {
         m_logger->trace("started 'pop'");
 
         CountedNodePtr oldHeadCountedNodePtr;
         
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-        MPI_Fetch_and_op(&oldHeadCountedNodePtr,
+        MPI_Fetch_and_op(nullptr,
                          &oldHeadCountedNodePtr,
                          MPI_UINT64_T,
                          HEAD_RANK,
@@ -225,11 +228,11 @@ namespace rma_stack::ref_counting
             Node node;
             constexpr auto nodeSize = sizeof(Node);
             const auto nodeDisplacement = static_cast<MPI_Aint>(nodeAddress.offset * nodeSize);
-            const MPI_Aint nodeOffset = MPI_Aint_add(m_pNodeArrAddresses[nodeAddress.rank],
+            const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank],
                                                      nodeDisplacement
             );
 
-            MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodeWin);
+            MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodesWin);
             MPI_Get(&node,
                     nodeSize,
                     MPI_UNSIGNED_CHAR,
@@ -237,25 +240,25 @@ namespace rma_stack::ref_counting
                     nodeOffset,
                     nodeSize,
                     MPI_UNSIGNED_CHAR,
-                    m_nodeWin
+                    m_nodesWin
             );
-            MPI_Win_flush(nodeAddress.rank, m_nodeWin);
-            MPI_Win_unlock(nodeAddress.rank, m_nodeWin);
+            MPI_Win_flush(nodeAddress.rank, m_nodesWin);
+            MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
 
-            auto& newCountedNodePtr = node.getCountedNodePtr();
+            auto& сountedNodePtrNext = node.getCountedNodePtr();
             {
-                const auto r = newCountedNodePtr.getRank();
-                const auto o = newCountedNodePtr.getOffset();
-                const auto e = newCountedNodePtr.getExternalCounter();
-                m_logger->trace("ptr->next (rank - {}, offset - {}, ext_cnt - {})) after increaseHeadCount in 'pop'", r, o, e);
+                const auto r = сountedNodePtrNext.getRank();
+                const auto o = сountedNodePtrNext.getOffset();
+                const auto e = сountedNodePtrNext.getExternalCounter();
+                m_logger->trace("ptr->next (rank - {}, offset - {}, ext_cnt - {})) in 'pop'", r, o, e);
             }
 
-            CountedNodePtr resCountedNodePtr;
+            CountedNodePtr resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-            MPI_Compare_and_swap(&newCountedNodePtr,
+            MPI_Compare_and_swap(&сountedNodePtrNext,
                                  &oldHeadCountedNodePtr,
-                                 &resCountedNodePtr,
+                                 &resHeadCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
                                  m_headAddress,
@@ -264,21 +267,21 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-            if (resCountedNodePtr == oldHeadCountedNodePtr)
+            if (resHeadCountedNodePtr == oldHeadCountedNodePtr)
             {
                 getDataCallback(nodeAddress);
 
                 const auto internalCounterRank          = static_cast<int>(nodeAddress.rank);
                 const auto internalCounterDisplacement  = static_cast<MPI_Aint>(nodeAddress.offset * sizeof(Node) + sizeof(int32_t));
-                const auto internalCounterOffset        = MPI_Aint_add(m_pNodeArrAddresses[nodeAddress.rank],
-                                                                   internalCounterDisplacement
+                const auto internalCounterOffset        = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank],
+                                                                       internalCounterDisplacement
                 );
 
                 const auto externalCount    = static_cast<int32_t>(oldHeadCountedNodePtr.getExternalCounter());
                 const int32_t countIncrease = externalCount - 2;
                 int32_t resInternalCount{0};
 
-                MPI_Win_lock(MPI_LOCK_SHARED, internalCounterRank, 0, m_nodeWin);
+                MPI_Win_lock(MPI_LOCK_SHARED, internalCounterRank, 0, m_nodesWin);
                 MPI_Fetch_and_op(
                         &countIncrease,
                         &resInternalCount,
@@ -286,10 +289,10 @@ namespace rma_stack::ref_counting
                         internalCounterRank,
                         internalCounterOffset,
                         MPI_SUM,
-                        m_nodeWin
+                        m_nodesWin
                 );
-                MPI_Win_flush(internalCounterRank, m_nodeWin);
-                MPI_Win_unlock(internalCounterRank, m_nodeWin);
+                MPI_Win_flush(internalCounterRank, m_nodesWin);
+                MPI_Win_unlock(internalCounterRank, m_nodesWin);
 
                 if (resInternalCount == -countIncrease)
                     releaseNode(nodeAddress);
@@ -300,13 +303,13 @@ namespace rma_stack::ref_counting
             {
                 const auto internalCounterRank          = static_cast<int>(nodeAddress.rank);
                 const auto internalCounterDisplacement  = static_cast<MPI_Aint>(nodeAddress.offset * sizeof(Node) + sizeof(int32_t));
-                const auto internalCounterOffset        = MPI_Aint_add(m_pNodeArrAddresses[nodeAddress.rank],
+                const auto internalCounterOffset        = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank],
                                                                        internalCounterDisplacement
                 );
 
                 const int64_t countIncrease{-1};
                 int64_t resInternalCount{0};
-                MPI_Win_lock(MPI_LOCK_SHARED, internalCounterRank, 0, m_nodeWin);
+                MPI_Win_lock(MPI_LOCK_SHARED, internalCounterRank, 0, m_nodesWin);
                 MPI_Fetch_and_op(
                         &countIncrease,
                         &resInternalCount,
@@ -314,31 +317,34 @@ namespace rma_stack::ref_counting
                         internalCounterRank,
                         internalCounterOffset,
                         MPI_SUM,
-                        m_nodeWin
+                        m_nodesWin
                 );
-                MPI_Win_flush(internalCounterRank, m_nodeWin);
-                MPI_Win_unlock(internalCounterRank, m_nodeWin);
+                MPI_Win_flush(internalCounterRank, m_nodesWin);
+                MPI_Win_unlock(internalCounterRank, m_nodesWin);
 
                 if (resInternalCount == 1)
                     releaseNode(nodeAddress);
             }
+            m_logger->trace("started to execute backoff callback");
+            backoffCallback();
+            m_logger->trace("executed backoff callback");
         }
         m_logger->trace("finished 'pop'");
     }
 
-    void InnerStack::increaseHeadCount(CountedNodePtr &oldCountedNodePtr)
+    void InnerStack::increaseHeadCount(CountedNodePtr &oldHeadCountedNodePtr)
     {
         CountedNodePtr newCountedNodePtr;
-        CountedNodePtr resCountedNodePtr = oldCountedNodePtr;
+        CountedNodePtr resCountedNodePtr = oldHeadCountedNodePtr;
         m_logger->trace("started 'increaseHeadCount'");
 
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
         do
         {
-            newCountedNodePtr = oldCountedNodePtr = resCountedNodePtr;
+            newCountedNodePtr = oldHeadCountedNodePtr = resCountedNodePtr;
             newCountedNodePtr.incExternalCounter();
             MPI_Compare_and_swap(&newCountedNodePtr,
-                                 &oldCountedNodePtr,
+                                 &oldHeadCountedNodePtr,
                                  &resCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
@@ -348,9 +354,9 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             m_logger->trace("executed CAS in 'increaseHeadCount'");
             m_logger->trace("oldCountedNodePtr is (rank - {}, offset - {}, ext_cnt - {})",
-                            oldCountedNodePtr.getRank(),
-                            oldCountedNodePtr.getOffset(),
-                            oldCountedNodePtr.getExternalCounter()
+                            oldHeadCountedNodePtr.getRank(),
+                            oldHeadCountedNodePtr.getOffset(),
+                            oldHeadCountedNodePtr.getExternalCounter()
             );
             m_logger->trace("resCountedNodePtr is (rank - {}, offset - {}, ext_cnt - {})",
                             resCountedNodePtr.getRank(),
@@ -358,10 +364,10 @@ namespace rma_stack::ref_counting
                             resCountedNodePtr.getExternalCounter()
             );
         }
-        while (oldCountedNodePtr != resCountedNodePtr);
+        while (oldHeadCountedNodePtr != resCountedNodePtr);
         MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-        oldCountedNodePtr.setExternalCounter(newCountedNodePtr.getExternalCounter());
+        oldHeadCountedNodePtr.setExternalCounter(newCountedNodePtr.getExternalCounter());
 
         m_logger->trace("finished 'increaseHeadCount'");
     }
@@ -380,29 +386,19 @@ namespace rma_stack::ref_counting
                 throw custom_mpi::MpiException("failed to get rank", __FILE__, __func__, __LINE__, mpiStatus);
         }
         m_logger->trace("got rank {}", m_rank);
-        {
-            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_nodeWin);
-            if (mpiStatus != MPI_SUCCESS)
-                throw custom_mpi::MpiException("failed to create RMA window for node array", __FILE__, __func__, __LINE__, mpiStatus);
-        }
-        {
-            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_headWin);
-            if (mpiStatus != MPI_SUCCESS)
-                throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
-        }
-        allocateProprietaryData(comm);
-        initStackWithDummy();
+
+        initRemoteAccessMemory(comm, info);
         MPI_Barrier(comm);
         m_logger->trace("finished InnerStack construction");
     }
 
     void InnerStack::release()
     {
-        MPI_Free_mem(m_pNodeArr);
-        m_pNodeArr = nullptr;
+        MPI_Free_mem(m_pNodesArr);
+        m_pNodesArr = nullptr;
         m_logger->trace("freed up node arr RMA memory");
 
-        MPI_Win_free(&m_nodeWin);
+        MPI_Win_free(&m_nodesWin);
         m_logger->trace("freed up node win RMA memory");
 
         MPI_Free_mem(m_pHeadCountedNodePtr);
@@ -413,21 +409,31 @@ namespace rma_stack::ref_counting
         m_logger->trace("freed up head win RMA memory");
     }
 
-    void InnerStack::allocateProprietaryData(MPI_Comm comm)
+    void InnerStack::initRemoteAccessMemory(MPI_Comm comm, MPI_Info info)
     {
+        {
+            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_nodesWin);
+            if (mpiStatus != MPI_SUCCESS)
+                throw custom_mpi::MpiException("failed to create RMA window for nodes", __FILE__, __func__, __LINE__, mpiStatus);
+        }
+        {
+            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_headWin);
+            if (mpiStatus != MPI_SUCCESS)
+                throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
+        }
+
         if (m_centralized)
         {
-            m_logger->trace("started to allocate node proprietary data");
-
-            m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
+            m_pBaseNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
 
             if (m_rank == HEAD_RANK)
             {
+                m_logger->trace("started to initialize node array");
                 constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
                 const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
                 {
                     auto mpiStatus = MPI_Alloc_mem(nodesSize, MPI_INFO_NULL,
-                                                   &m_pNodeArr);
+                                                   &m_pNodesArr);
                     if (mpiStatus != MPI_SUCCESS)
                         throw custom_mpi::MpiException(
                                 "failed to allocate RMA memory",
@@ -438,32 +444,34 @@ namespace rma_stack::ref_counting
                         );
                 }
 
-                std::fill_n(m_pNodeArr, m_elemsUpLimit, Node());
+                std::fill_n(m_pNodesArr, m_elemsUpLimit, Node());
+                m_logger->trace("initialized node array");
                 {
                     const auto winAttachSize = static_cast<MPI_Aint>(m_elemsUpLimit);
-                    auto mpiStatus = MPI_Win_attach(m_nodeWin, m_pNodeArr, winAttachSize);
-                    if (mpiStatus != MPI_SUCCESS)
+                    auto mpiStatus = MPI_Win_attach(m_nodesWin, m_pNodesArr, winAttachSize);
+                    if (mpiStatus != MPI_SUCCESS) {
                         throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
+                    }
                 }
-                MPI_Get_address(m_pNodeArr, m_pNodeArrAddresses.get());
+                m_logger->trace("attach nodes RMA window");
+                MPI_Get_address(m_pNodesArr, m_pBaseNodeArrAddresses.get());
             }
-            m_logger->trace("allocated node proprietary data");
 
-            m_logger->trace("started to broadcast node arr addresses");
-            auto mpiStatus = MPI_Bcast(m_pNodeArrAddresses.get(), 1, MPI_AINT, HEAD_RANK, comm);
+            m_logger->trace("started to broadcast node array addresses");
+            auto mpiStatus = MPI_Bcast(m_pBaseNodeArrAddresses.get(), 1, MPI_AINT, HEAD_RANK, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast node array address", __FILE__, __func__ , __LINE__, mpiStatus);
-            m_logger->trace("finished broadcasting node arr addresses");
+            m_logger->trace("broadcasted node array addresses");
         }
         else
         {
-            m_logger->trace("started to allocate node proprietary data");
+            m_logger->trace("started to initialize node array");
 
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
             const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
             {
                 auto mpiStatus = MPI_Alloc_mem(nodesSize, MPI_INFO_NULL,
-                                               &m_pNodeArr);
+                                               &m_pNodesArr);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException(
                             "failed to allocate RMA memory",
@@ -474,37 +482,35 @@ namespace rma_stack::ref_counting
                     );
             }
 
-            std::fill_n(m_pNodeArr, m_elemsUpLimit, Node());
+            std::fill_n(m_pNodesArr, m_elemsUpLimit, Node());
+            m_logger->trace("initialized node array");
             {
                 const auto winAttachSize = static_cast<MPI_Aint>(m_elemsUpLimit);
-                auto mpiStatus = MPI_Win_attach(m_nodeWin, m_pNodeArr, winAttachSize);
+                auto mpiStatus = MPI_Win_attach(m_nodesWin, m_pNodesArr, winAttachSize);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
 
-            m_logger->trace("allocated node proprietary data");
-
-            m_logger->trace("started to broadcast node arr addresses");
-
+            m_logger->trace("started to broadcast node array addresses");
             int procNum{0};
             MPI_Comm_size(comm, &procNum);
-            m_pNodeArrAddresses = std::make_unique<MPI_Aint[]>(procNum);
-            MPI_Get_address(m_pNodeArr, &m_pNodeArrAddresses[m_rank]);
+            m_pBaseNodeArrAddresses = std::make_unique<MPI_Aint[]>(procNum);
+            MPI_Get_address(m_pNodesArr, &m_pBaseNodeArrAddresses[m_rank]);
 
             for (int i = 0; i < procNum; ++i)
             {
-                auto mpiStatus = MPI_Bcast(&m_pNodeArrAddresses[i], 1, MPI_AINT, i, comm);
+                auto mpiStatus = MPI_Bcast(&m_pBaseNodeArrAddresses[i], 1, MPI_AINT, i, comm);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to broadcast node array base address", __FILE__, __func__ , __LINE__, mpiStatus);
-                m_logger->trace("m_pNodeArrAddresses[{}] = {}", i, m_pNodeArrAddresses[i]);
+                m_logger->trace("m_pNodeArrAddresses[{}] = {}", i, m_pBaseNodeArrAddresses[i]);
             }
 
-            m_logger->trace("finished broadcasting node arr addresses");
+            m_logger->trace("broadcasted node array addresses");
         }
 
         if (m_rank == HEAD_RANK)
         {
-            m_logger->trace("started to allocate head data");
+            m_logger->trace("started to initialize head");
 
             {
                 auto mpiStatus = MPI_Alloc_mem(sizeof(CountedNodePtr), MPI_INFO_NULL,
@@ -519,13 +525,14 @@ namespace rma_stack::ref_counting
                     );
             }
             *m_pHeadCountedNodePtr = CountedNodePtr();
+            m_logger->trace("initialized head");
             {
                 auto mpiStatus = MPI_Win_attach(m_headWin, m_pHeadCountedNodePtr, 1);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
+            m_logger->trace("attached nodes RMA window");
             MPI_Get_address(m_pHeadCountedNodePtr, &m_headAddress);
-            m_logger->trace("finished allocating head data");
         }
 
         {
@@ -533,29 +540,7 @@ namespace rma_stack::ref_counting
             auto mpiStatus = MPI_Bcast(&m_headAddress, 1, MPI_AINT, HEAD_RANK, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast head address", __FILE__, __func__ , __LINE__, mpiStatus);
-            m_logger->trace("finished broadcasting head address");
-        }
-    }
-
-    void InnerStack::initStackWithDummy() const
-    {
-        if (m_rank == HEAD_RANK)
-        {
-            m_logger->trace("started to initialize head with dummy");
-            MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-            CountedNodePtr dummyCountedNodePtr;
-            MPI_Put(&dummyCountedNodePtr,
-                    1,
-                    MPI_UINT64_T,
-                    HEAD_RANK,
-                    m_headAddress,
-                    1,
-                    MPI_UINT64_T,
-                    m_headWin
-            );
-            MPI_Win_flush(HEAD_RANK, m_headWin);
-            MPI_Win_unlock(HEAD_RANK, m_headWin);
-            m_logger->trace("initialized head with dummy");
+            m_logger->trace("broadcasted head address");
         }
     }
 
