@@ -15,7 +15,7 @@ for i in range(1, PROC_NUM + 1):
     log_path_i = logs_path / f"{i}"
     log_path_i.mkdir()
 
-    rand_value = (1 + random.randint(-SHIFT, SHIFT)) * 10
+    rand_value = (1 + random.randint(-SHIFT, SHIFT)) * 10.1
     elapsed_time_delta = rand_value if rand_value > 0 else 1
     elapsed_time_cnt += elapsed_time_delta
 

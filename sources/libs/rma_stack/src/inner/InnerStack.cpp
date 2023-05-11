@@ -90,9 +90,12 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-            m_logger->trace("started to execute backoff callback");
-            backoffCallback();
-            m_logger->trace("executed backoff callback");
+            if (resHeadCountedNodePtr != oldHeadCountedNodePtr)
+            {
+                m_logger->trace("started to execute backoff callback");
+                backoffCallback();
+                m_logger->trace("executed backoff callback");
+            }
         }
         while (resHeadCountedNodePtr != oldHeadCountedNodePtr);
 
@@ -245,18 +248,18 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(nodeAddress.rank, m_nodesWin);
             MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
 
-            auto& сountedNodePtrNext = node.getCountedNodePtr();
+            auto& countedNodePtrNext = node.getCountedNodePtr();
             {
-                const auto r = сountedNodePtrNext.getRank();
-                const auto o = сountedNodePtrNext.getOffset();
-                const auto e = сountedNodePtrNext.getExternalCounter();
+                const auto r = countedNodePtrNext.getRank();
+                const auto o = countedNodePtrNext.getOffset();
+                const auto e = countedNodePtrNext.getExternalCounter();
                 m_logger->trace("ptr->next (rank - {}, offset - {}, ext_cnt - {})) in 'pop'", r, o, e);
             }
 
             CountedNodePtr resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-            MPI_Compare_and_swap(&сountedNodePtrNext,
+            MPI_Compare_and_swap(&countedNodePtrNext,
                                  &oldHeadCountedNodePtr,
                                  &resHeadCountedNodePtr,
                                  MPI_UINT64_T,
