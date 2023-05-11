@@ -2,7 +2,7 @@
 // Created by denis on 22.01.23.
 //
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dup_filter_sink.h>
@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 
     const auto minBackoffDelay = 1ns;
     const auto maxBackoffDelay = 100ns;
-    const auto elemsUpLimit{15000};
+    const auto elemsUpLimit{20000};
 
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
                 elemsUpLimit,
                 duplicatingFilterSink
         );
-        runStackProducerConsumerBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
+        runStackRandomOperationBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)

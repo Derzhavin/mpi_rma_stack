@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <chrono>
 #include <spdlog/spdlog.h>
+#include <ctime>
 
 #include "IStack.h"
 #include "inner/InnerStack.h"
@@ -55,10 +56,10 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
 
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
-void runStackProducerConsumerBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
-                                           std::shared_ptr<spdlog::sinks::sink> loggerSink)
+void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
+                                          std::shared_ptr<spdlog::sinks::sink> loggerSink)
 {
-    SPDLOG_INFO("started 'runStackProducerConsumerBenchmarkTask'");
+    SPDLOG_INFO("started 'runStackRandomOperationBenchmarkTask'");
 
     auto pLogger = std::make_shared<spdlog::logger>(producerConsumerBenchmarkLoggerName.data(), loggerSink);
     pLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
@@ -74,22 +75,31 @@ void runStackProducerConsumerBenchmarkTask(stack_interface::IStack<StackImpl> &s
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    const double tBeginSec = MPI_Wtime();
-    if (rank % 2)
+    if (rank == 0)
     {
-        for (int i = 0; i < opsNum; ++i)
+        for (int i = 0; i < 100; ++i)
         {
-            stack.push(i);
-            std::this_thread::sleep_for(workload);
+            stack.push(1);
         }
     }
-    else
+    MPI_Barrier(comm);
+    time_t t;
+    std::srand((unsigned) time(&t));
+
+    const double tBeginSec = MPI_Wtime();
+    for (int i = 0; i < opsNum; ++i)
     {
-        for (int i = 0; i < opsNum; ++i)
+        int e = std::rand() % 50;
+        if (e > 25)
         {
-            stack.push(i);
-            std::this_thread::sleep_for(workload);
+            stack.push(e);
         }
+        else
+        {
+            int defaultValue = -1;
+            stack.pop(e, defaultValue);
+        }
+        std::this_thread::sleep_for(workload);
     }
     const double tEndSec = MPI_Wtime();
 

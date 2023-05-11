@@ -5,7 +5,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 
-LOGS_PATH = "../data/decentralized/producer_consumer_0/"
+LOGS_PATH = "../data/decentralized/random_operation_0/"
 PLOT_PATH = "../data/decentralized/"
 TOTAL_OPS = 15000
 
