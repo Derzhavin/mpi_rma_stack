@@ -9,7 +9,7 @@ namespace rma_stack::ref_counting
 {
     namespace custom_mpi = custom_mpi_extensions;
 
-    bool InnerStack::push(const std::function<void(GlobalAddress)> &putDataCallback,
+    void InnerStack::push(const std::function<void(GlobalAddress)> &putDataCallback,
                           const std::function<void()> &backoffCallback)
     {
         m_logger->trace("started 'push'");
@@ -18,7 +18,7 @@ namespace rma_stack::ref_counting
         if (isGlobalAddressDummy(nodeAddress))
         {
             m_logger->trace("failed to find free node in 'push'");
-            return false;
+            return;
         }
         {
             const auto r = nodeAddress.rank;
@@ -29,11 +29,11 @@ namespace rma_stack::ref_counting
         putDataCallback(nodeAddress);
         m_logger->trace("put data in 'push'");
 
-        CountedNodePtr resCountedNodePtr;
+        CountedNodePtr resHeadCountedNodePtr;
 
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-        MPI_Fetch_and_op(&resCountedNodePtr,
-                         &resCountedNodePtr,
+        MPI_Fetch_and_op(nullptr,
+                         &resHeadCountedNodePtr,
                          MPI_UINT64_T,
                          HEAD_RANK,
                          m_headAddress,
@@ -43,7 +43,7 @@ namespace rma_stack::ref_counting
         MPI_Win_flush(HEAD_RANK, m_headWin);
         MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-        m_logger->trace("fetched head (rank - {}, offset - {})", resCountedNodePtr.getRank(), resCountedNodePtr.getOffset());
+        m_logger->trace("fetched head (rank - {}, offset - {})", resHeadCountedNodePtr.getRank(), resHeadCountedNodePtr.getOffset());
 
         m_logger->trace("started new head pushing in 'push'");
 
@@ -52,7 +52,7 @@ namespace rma_stack::ref_counting
         newCountedNodePtr.setOffset(nodeAddress.offset);
         newCountedNodePtr.incExternalCounter();
 
-        CountedNodePtr oldCountedNodePtr;
+        CountedNodePtr oldHeadCountedNodePtr;
         CountedNodePtr countedNodePtrNext;
 
         constexpr auto nodeSize                     = sizeof(Node);
@@ -61,7 +61,7 @@ namespace rma_stack::ref_counting
 
         do
         {
-            countedNodePtrNext = resCountedNodePtr;
+            countedNodePtrNext = resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodesWin);
             MPI_Put(&countedNodePtrNext,
@@ -76,12 +76,12 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(nodeAddress.rank, m_nodesWin);
             MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
 
-            oldCountedNodePtr = resCountedNodePtr;
+            oldHeadCountedNodePtr = resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
             MPI_Compare_and_swap(&newCountedNodePtr,
-                                 &oldCountedNodePtr,
-                                 &resCountedNodePtr,
+                                 &oldHeadCountedNodePtr,
+                                 &resHeadCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
                                  m_headAddress,
@@ -90,15 +90,13 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-            m_logger->trace("executed CAS in 'push'");
-
+            m_logger->trace("started to execute backoff callback");
             backoffCallback();
             m_logger->trace("executed backoff callback");
         }
-        while (resCountedNodePtr != oldCountedNodePtr);
+        while (resHeadCountedNodePtr != oldHeadCountedNodePtr);
 
         m_logger->trace("finished 'push'");
-        return true;
     }
 
     GlobalAddress InnerStack::acquireNode(int rank) const
@@ -190,7 +188,7 @@ namespace rma_stack::ref_counting
         CountedNodePtr oldHeadCountedNodePtr;
         
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-        MPI_Fetch_and_op(&oldHeadCountedNodePtr,
+        MPI_Fetch_and_op(nullptr,
                          &oldHeadCountedNodePtr,
                          MPI_UINT64_T,
                          HEAD_RANK,
@@ -247,20 +245,20 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(nodeAddress.rank, m_nodesWin);
             MPI_Win_unlock(nodeAddress.rank, m_nodesWin);
 
-            auto& newCountedNodePtr = node.getCountedNodePtr();
+            auto& сountedNodePtrNext = node.getCountedNodePtr();
             {
-                const auto r = newCountedNodePtr.getRank();
-                const auto o = newCountedNodePtr.getOffset();
-                const auto e = newCountedNodePtr.getExternalCounter();
-                m_logger->trace("ptr->next (rank - {}, offset - {}, ext_cnt - {})) after increaseHeadCount in 'pop'", r, o, e);
+                const auto r = сountedNodePtrNext.getRank();
+                const auto o = сountedNodePtrNext.getOffset();
+                const auto e = сountedNodePtrNext.getExternalCounter();
+                m_logger->trace("ptr->next (rank - {}, offset - {}, ext_cnt - {})) in 'pop'", r, o, e);
             }
 
-            CountedNodePtr resCountedNodePtr;
+            CountedNodePtr resHeadCountedNodePtr;
 
             MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
-            MPI_Compare_and_swap(&newCountedNodePtr,
+            MPI_Compare_and_swap(&сountedNodePtrNext,
                                  &oldHeadCountedNodePtr,
-                                 &resCountedNodePtr,
+                                 &resHeadCountedNodePtr,
                                  MPI_UINT64_T,
                                  HEAD_RANK,
                                  m_headAddress,
@@ -269,7 +267,7 @@ namespace rma_stack::ref_counting
             MPI_Win_flush(HEAD_RANK, m_headWin);
             MPI_Win_unlock(HEAD_RANK, m_headWin);
 
-            if (resCountedNodePtr == oldHeadCountedNodePtr)
+            if (resHeadCountedNodePtr == oldHeadCountedNodePtr)
             {
                 getDataCallback(nodeAddress);
 
@@ -327,6 +325,7 @@ namespace rma_stack::ref_counting
                 if (resInternalCount == 1)
                     releaseNode(nodeAddress);
             }
+            m_logger->trace("started to execute backoff callback");
             backoffCallback();
             m_logger->trace("executed backoff callback");
         }

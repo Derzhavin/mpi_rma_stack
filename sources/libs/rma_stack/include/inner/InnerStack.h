@@ -24,7 +24,7 @@ namespace rma_stack::ref_counting
 
             InnerStack(MPI_Comm comm, MPI_Info info, bool t_centralized, size_t t_elemsUpLimit,
                        std::shared_ptr<spdlog::logger> t_logger);
-            bool push(const std::function<void(GlobalAddress)> &putDataCallback,
+            void push(const std::function<void(GlobalAddress)> &putDataCallback,
                       const std::function<void()> &backoffCallback);
             void pop(const std::function<void(GlobalAddress)> &getDataCallback,
                      const std::function<void()> &backoffCallback);
