@@ -11,7 +11,7 @@
 
 #include "IStack.h"
 
-#include "outer/Backoff.h"
+#include "outer/ExponentialBackoff.h"
 #include "inner/InnerStack.h"
 #include "MpiException.h"
 
@@ -51,26 +51,23 @@ namespace rma_stack
     private:
         // public stack interface begin
         void pushImpl(const T &rValue);
-        T popImpl();
+        void popImpl(T &rValue, const T &rDefaultValue);
         T& topImpl();
         size_t sizeImpl();
         bool isEmptyImpl();
         // public stack interface end
 
-        void allocateProprietaryData(MPI_Comm comm);
-        bool isStopRequested();
-        bool tryPush(const T &rValue);
-        bool tryPop(T &rValue);
+        void initRemoteAccessMemory(MPI_Comm comm, MPI_Info info);
 
     private:
-        std::chrono::nanoseconds backoffMinDelay;
-        std::chrono::nanoseconds backoffMaxDelay;
+        std::chrono::nanoseconds m_backoffMinDelay;
+        std::chrono::nanoseconds m_backoffMaxDelay;
 
         ref_counting::InnerStack m_innerStack;
         int m_rank{-1};
-        MPI_Win m_dataWin{MPI_WIN_NULL};
-        T* m_pDataArr{nullptr};
-        std::unique_ptr<MPI_Aint[]> m_pDataBaseAddresses;
+        MPI_Win m_userDataWin{MPI_WIN_NULL};
+        T* m_pUserDataArr{nullptr};
+        std::unique_ptr<MPI_Aint[]> m_pUserDataBaseAddresses;
         std::shared_ptr<spdlog::logger> m_logger;
     };
 
@@ -79,11 +76,11 @@ namespace rma_stack
     {
         m_innerStack.release();
 
-        MPI_Free_mem(m_pDataArr);
-        m_pDataArr = nullptr;
+        MPI_Free_mem(m_pUserDataArr);
+        m_pUserDataArr = nullptr;
         m_logger->trace("freed up data arr RMA memory");
 
-        MPI_Win_free(&m_dataWin);
+        MPI_Win_free(&m_userDataWin);
         m_logger->trace("freed up data win RMA memory");
     }
 
@@ -94,59 +91,79 @@ namespace rma_stack
                                                                   ref_counting::InnerStack &&t_innerStack,
                                                                   std::shared_ptr<spdlog::logger> t_logger)
             :
-            backoffMinDelay(t_rBackoffMinDelay),
-            backoffMaxDelay(t_rBackoffMaxDelay),
+            m_backoffMinDelay(t_rBackoffMinDelay),
+            m_backoffMaxDelay(t_rBackoffMaxDelay),
             m_innerStack(std::move(t_innerStack)),
             m_logger(std::move(t_logger))
     {
         MPI_Comm_rank(comm, &m_rank);
 
-        {
-            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_dataWin);
-            if (mpiStatus != MPI_SUCCESS)
-                throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
-        }
-
-        allocateProprietaryData(comm);
+        initRemoteAccessMemory(comm, info);
     }
 
     template<typename T>
     void RmaTreiberDecentralizedStack<T>::pushImpl(const T &rValue)
     {
-        Backoff backoff(backoffMinDelay, backoffMaxDelay);
-        while(!isStopRequested())
-        {
-            if (tryPush(rValue))
-            {
-                return;
-            }
-            else
-            {
+        m_innerStack.push([&rValue, &win = m_userDataWin, &pDataBaseAddresses = m_pUserDataBaseAddresses](
+                                  const ref_counting::GlobalAddress &dataAddress) {
+                constexpr auto valueSize = sizeof(rValue);
+                const auto offset = dataAddress.offset * valueSize;
+                const auto displacement = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
+                MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
+                MPI_Put(&rValue,
+                      valueSize,
+                      MPI_UNSIGNED_CHAR,
+                      dataAddress.rank,
+                      displacement,
+                      valueSize,
+                      MPI_UNSIGNED_CHAR,
+                      win
+                );
+                MPI_Win_flush(dataAddress.rank, win);
+                MPI_Win_unlock(dataAddress.rank, win);
+            },
+            [&backoffMinDelay = m_backoffMinDelay, &backoffMaxDelay = m_backoffMaxDelay] () {
+                ExponentialBackoff backoff(backoffMinDelay, backoffMaxDelay);
                 backoff.backoff();
             }
-        }
+        );
+
         m_logger->trace("rank %d finished 'pushImpl'", m_rank);
     }
 
     template<typename T>
-    T RmaTreiberDecentralizedStack<T>::popImpl()
+    void RmaTreiberDecentralizedStack<T>::popImpl(T &rValue, const T &rDefaultValue)
     {
-        Backoff backoff(backoffMinDelay, backoffMaxDelay);
-
-        T value{};
-
-        while (!isStopRequested())
-        {
-            if (tryPop(value))
+        m_innerStack.pop([&rValue, &rDefaultValue, &win = m_userDataWin, &pDataBaseAddresses = m_pUserDataBaseAddresses](
+                                 const ref_counting::GlobalAddress &dataAddress) {
+            if (ref_counting::isGlobalAddressDummy(dataAddress))
             {
-                break;
+                rValue = rDefaultValue;
+                return;
             }
-            else
-            {
+
+            constexpr auto valueSize = sizeof(rValue);
+            const auto offset = dataAddress.offset * valueSize;
+            const auto displacement = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
+            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
+            MPI_Get(&rValue,
+                 valueSize,
+                 MPI_UNSIGNED_CHAR,
+                 dataAddress.rank,
+                 displacement,
+                 valueSize,
+                 MPI_UNSIGNED_CHAR,
+                 win
+            );
+            MPI_Win_flush(dataAddress.rank, win);
+            MPI_Win_unlock(dataAddress.rank, win);
+            },
+            [&backoffMinDelay = m_backoffMinDelay, &backoffMaxDelay = m_backoffMaxDelay] () {
+                ExponentialBackoff backoff(backoffMinDelay, backoffMaxDelay);
                 backoff.backoff();
             }
-        }
-        return value;
+        );
+        m_logger->trace("rank %d finished 'popImpl'",m_rank);
     }
 
     template<typename T>
@@ -168,76 +185,19 @@ namespace rma_stack
     }
 
     template<typename T>
-    bool RmaTreiberDecentralizedStack<T>::isStopRequested()
+    void RmaTreiberDecentralizedStack<T>::initRemoteAccessMemory(MPI_Comm comm, MPI_Info info)
     {
-        return false;
-    }
+        {
+            auto mpiStatus = MPI_Win_create_dynamic(info, comm, &m_userDataWin);
+            if (mpiStatus != MPI_SUCCESS)
+                throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
+        }
 
-    template<typename T>
-    bool RmaTreiberDecentralizedStack<T>::tryPush(const T &rValue)
-    {
-        auto res = m_innerStack.push([&rValue, &win = m_dataWin, &pDataBaseAddresses=m_pDataBaseAddresses](const ref_counting::GlobalAddress &dataAddress) {
-            constexpr auto valueSize    = sizeof(rValue);
-            const auto offset           = dataAddress.offset * valueSize;
-            const auto displacement     = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
-            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
-            MPI_Put(&rValue,
-                    valueSize,
-                    MPI_UNSIGNED_CHAR,
-                    dataAddress.rank,
-                    displacement,
-                    valueSize,
-                    MPI_UNSIGNED_CHAR,
-                    win
-            );
-            MPI_Win_flush(dataAddress.rank, win);
-            MPI_Win_unlock(dataAddress.rank, win);
-        });
-
-        if (!res)
-            return false;
-
-        m_logger->trace(
-                            "rank %d finished 'tryPush'",
-                            m_rank
-        );
-        return true;
-    }
-
-    template<typename T>
-    bool RmaTreiberDecentralizedStack<T>::tryPop(T &rValue)
-    {
-        m_innerStack.pop([&rValue, &win=m_dataWin, &pDataBaseAddresses=m_pDataBaseAddresses](const ref_counting::GlobalAddress &dataAddress) {
-            if (ref_counting::isGlobalAddressDummy(dataAddress))
-                return;
-
-            constexpr auto valueSize    = sizeof(rValue);
-            const auto offset           = dataAddress.offset * valueSize;
-            const auto displacement     = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
-            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
-            MPI_Get(&rValue,
-                    valueSize,
-                    MPI_UNSIGNED_CHAR,
-                    dataAddress.rank,
-                    displacement,
-                    valueSize,
-                    MPI_UNSIGNED_CHAR,
-                    win
-            );
-            MPI_Win_flush(dataAddress.rank, win);
-            MPI_Win_unlock(dataAddress.rank, win);
-        });
-        return true;
-    }
-
-    template<typename T>
-    void RmaTreiberDecentralizedStack<T>::allocateProprietaryData(MPI_Comm comm)
-    {
         auto elemsUpLimit = m_innerStack.getElemsUpLimit();
         constexpr auto elemSize = sizeof(T);
         {
             auto mpiStatus = MPI_Alloc_mem(elemSize * elemsUpLimit, MPI_INFO_NULL,
-                                           &m_pDataArr);
+                                           &m_pUserDataArr);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException(
                         "failed to allocate RMA memory",
@@ -247,20 +207,20 @@ namespace rma_stack
                         mpiStatus
                 );
         }
-        std::fill_n(m_pDataArr, elemsUpLimit, T());
+        std::fill_n(m_pUserDataArr, elemsUpLimit, T());
         {
-            auto mpiStatus = MPI_Win_attach(m_dataWin, m_pDataArr, elemsUpLimit);
+            auto mpiStatus = MPI_Win_attach(m_userDataWin, m_pUserDataArr, elemsUpLimit);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
         }
         int procNum{0};
         MPI_Comm_size(comm, &procNum);
-        m_pDataBaseAddresses = std::make_unique<MPI_Aint[]>(procNum);
-        MPI_Get_address(m_pDataArr, &m_pDataBaseAddresses[m_rank]);
+        m_pUserDataBaseAddresses = std::make_unique<MPI_Aint[]>(procNum);
+        MPI_Get_address(m_pUserDataArr, &m_pUserDataBaseAddresses[m_rank]);
 
         for (int i = 0; i < procNum; ++i)
         {
-            auto mpiStatus = MPI_Bcast(&m_pDataBaseAddresses[i], 1, MPI_AINT, i, comm);
+            auto mpiStatus = MPI_Bcast(&m_pUserDataBaseAddresses[i], 1, MPI_AINT, i, comm);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to broadcast data array base address", __FILE__, __func__ , __LINE__, mpiStatus);
         }
@@ -320,9 +280,9 @@ namespace stack_interface
         {
             stack.pushImpl(value);
         }
-        static ValueType popImpl(rma_stack::RmaTreiberDecentralizedStack<T>& stack)
+        static void popImpl(rma_stack::RmaTreiberDecentralizedStack<T>& stack, ValueType &rValue, const ValueType &rDefaultValue)
         {
-            return stack.popImpl();
+            stack.popImpl(rValue, rDefaultValue);
         }
         static ValueType& topImpl(rma_stack::RmaTreiberDecentralizedStack<T>& stack)
         {

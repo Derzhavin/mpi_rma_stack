@@ -17,7 +17,7 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
     {
         stack.push([&pushedAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
             pushedAddress = t_dataAddress;
-        });
+        }, [](){});
         const auto r = pushedAddress.rank;
         const auto o = pushedAddress.offset;
         spdlog::debug("received address by 'push' ({}, {})", r, o);
@@ -27,9 +27,9 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
     {
         rma_stack::ref_counting::GlobalAddress dataAddress{0, rma_stack::ref_counting::DummyRank, 0};
 
-        stack.pop([&dataAddress] (const rma_stack::ref_counting::GlobalAddress& t_dataAddress){
+        stack.pop([&dataAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
             dataAddress = t_dataAddress;
-        });
+        },[](){});
         const auto r = dataAddress.rank;
         const auto o = dataAddress.offset;
         spdlog::debug("received address by 'pop' ({}, {})", r, o);
