@@ -31,6 +31,7 @@ namespace rma_stack::ref_counting
             void release();
             [[nodiscard]] size_t getElemsUpLimit() const;
 
+            void printStack(); // функция не потокобезопасная
         private:
             void initRemoteAccessMemory(MPI_Comm comm, MPI_Info info);
             void increaseHeadCount(CountedNodePtr& oldHeadCountedNodePtr);
