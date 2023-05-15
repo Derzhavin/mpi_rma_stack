@@ -2,7 +2,7 @@
 // Created by denis on 22.01.23.
 //
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dup_filter_sink.h>
@@ -26,8 +26,8 @@ int main(int argc, char *argv[])
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    const auto minBackoffDelay = 1us;
-    const auto maxBackoffDelay = 100us;
+    const auto minBackoffDelay = 1ns;
+    const auto maxBackoffDelay = 100ns;
     const auto elemsUpLimit{100};
 
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
