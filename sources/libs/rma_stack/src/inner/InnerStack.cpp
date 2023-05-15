@@ -160,6 +160,7 @@ namespace rma_stack::ref_counting
                                                  nodeDisplacement
         );
         int32_t acquiredField{1};
+        int32_t acquiredField1{acquiredField1};
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
@@ -167,7 +168,7 @@ namespace rma_stack::ref_counting
         }
         MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, 0, m_nodesWin);
         MPI_Fetch_and_op(&acquiredField,
-                         &acquiredField,
+                         &acquiredField1,
                          MPI_UINT32_T,
                          nodeAddress.rank,
                          nodeOffset,
@@ -550,5 +551,26 @@ namespace rma_stack::ref_counting
     size_t InnerStack::getElemsUpLimit() const
     {
         return m_elemsUpLimit;
+    }
+
+    void InnerStack::printStack()
+    {
+        CountedNodePtr slider;
+        MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, 0, m_headWin);
+        MPI_Fetch_and_op(nullptr, &slider, MPI_UINT64_T, HEAD_RANK, m_headAddress, MPI_NO_OP, m_headWin);
+        MPI_Win_unlock(HEAD_RANK, m_headWin);
+
+        while (slider.getRank() < DummyRank)
+        {
+            m_logger->info("(rank - {}, offset - {})", slider.getRank(), slider.getOffset());
+
+            int nextRank            = static_cast<int>(slider.getRank());
+            auto nextDisplacement   = static_cast<MPI_Aint>(slider.getOffset() * sizeof(Node)) + 8;
+            auto nextOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[nextRank], nextDisplacement);
+
+            MPI_Win_lock(MPI_LOCK_SHARED, nextRank, 0, m_nodesWin);
+            MPI_Get(&slider, 1, MPI_UINT64_T, nextRank, nextOffset, 1, MPI_UINT64_T, m_nodesWin);
+            MPI_Win_unlock(nextRank, m_nodesWin);
+        }
     }
 } // ref_counting

@@ -13,7 +13,8 @@ namespace rma_stack::ref_counting
     :
     m_acquired(0),
     m_reserved(0),
-    m_internalCounter(0)
+    m_internalCounter(0),
+    m_countedNodePtrNext()
     {
 
     }

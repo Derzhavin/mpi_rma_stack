@@ -17,17 +17,16 @@ namespace rma_stack::ref_counting
     public:
         Node();
         [[nodiscard]] const CountedNodePtr &getCountedNodePtr() const;
+        void setCountedNodePtrNext(const CountedNodePtr &t_countedNodePtr);
 
     private:
-        // Second 8 bytes.
+        // First 8 bytes.
         uint32_t m_acquired : 1;
         uint32_t m_reserved : 32 - 1;
         int32_t m_internalCounter;
 
-        // Third 8 bytes.
+        // Second 8 bytes.
         CountedNodePtr m_countedNodePtrNext;
-    public:
-        void setCountedNodePtrNext(const CountedNodePtr &t_countedNodePtr);
     };
 } // rma_stack
 

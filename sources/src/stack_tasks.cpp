@@ -4,6 +4,7 @@
 
 #include "include/stack_tasks.h"
 
+#include "outer/ExponentialBackoff.h"
 void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, MPI_Comm comm)
 {
     spdlog::debug("started 'runInnerStackSimplePushPopTask'");
@@ -17,12 +18,19 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
     {
         stack.push([&pushedAddress](const rma_stack::ref_counting::GlobalAddress &t_dataAddress) {
             pushedAddress = t_dataAddress;
-        }, [](){});
+        },
+            [backoffMinDelay = 100us, backoffMaxDelay = 1000us] () {
+            rma_stack::ExponentialBackoff backoff(backoffMinDelay, backoffMaxDelay);
+            backoff.backoff();
+            }
+        );
         const auto r = pushedAddress.rank;
         const auto o = pushedAddress.offset;
         spdlog::debug("received address by 'push' ({}, {})", r, o);
     }
-
+    MPI_Barrier(comm);
+    stack.printStack();
+    MPI_Barrier(comm);
     for (int i = 0; i < pushedAddressesSize; ++i)
     {
         rma_stack::ref_counting::GlobalAddress dataAddress{0, rma_stack::ref_counting::DummyRank, 0};

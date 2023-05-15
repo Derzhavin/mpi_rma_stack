@@ -26,8 +26,8 @@ int main(int argc, char *argv[])
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    const auto minBackoffDelay = 1ns;
-    const auto maxBackoffDelay = 100ns;
+    const auto minBackoffDelay = 1us;
+    const auto maxBackoffDelay = 100us;
     const auto elemsUpLimit{100};
 
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
