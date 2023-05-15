@@ -132,7 +132,7 @@ namespace rma_stack
              }
         );
 
-        m_logger->trace("rank %d finished 'push'",m_rank);
+        m_logger->trace("finished 'push'",m_rank);
     }
 
     template<typename T>
@@ -167,7 +167,7 @@ namespace rma_stack
                 backoff.backoff();
             }
         );
-        m_logger->trace("rank %d finished 'popImpl'",m_rank);
+        m_logger->trace("finished 'popImpl'",m_rank);
     }
 
     template<typename T>
