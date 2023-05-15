@@ -60,6 +60,8 @@ int main(int argc, char *argv[])
                 duplicatingFilterSink
         );
         runStackRandomOperationBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
+
+        MPI_Barrier(comm);
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)

@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
                 duplicatingFilterSink
         );
         runStackSimpleIntPushPopTask(rmaTreiberStack, comm);
+        MPI_Barrier(comm);
         rmaTreiberStack.release();
     }
     catch (custom_mpi_extensions::MpiException& ex)
