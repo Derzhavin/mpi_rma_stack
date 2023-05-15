@@ -61,7 +61,10 @@ namespace rma_stack::ref_counting
 
     bool operator==(CountedNodePtr& lhs, CountedNodePtr& rhs)
     {
-        return lhs.m_rank == rhs.m_rank && lhs.m_offset == rhs.m_offset;
+        return
+        lhs.m_rank == rhs.m_rank
+        && lhs.m_offset == rhs.m_offset
+        && lhs.m_externalCounter == rhs.m_externalCounter;
     }
 
     bool operator!=(CountedNodePtr &lhs, CountedNodePtr &rhs) {
