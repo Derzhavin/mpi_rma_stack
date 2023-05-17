@@ -4,8 +4,8 @@ cd ..
 
 export CC=/usr/local/bin/mpicc
 export CXX=/usr/local/bin/mpic++
-export CXXFLAGS="-g3 -march=native -Wall -Wextra -pedantic"
-export CFLAGS="-g3 -march=native -Wall -Wextra -pedantic"
+export CXXFLAGS="-g3 -pg -march=native -Wall -Wextra -pedantic"
+export CFLAGS="-g3 -pg -march=native -Wall -Wextra -pedantic"
 
 BUILD_DIR=cmake-build-debug
 INSTALL_DIR=install-debug

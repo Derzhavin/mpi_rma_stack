@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(sources)
 
+set(CMAKE_CXX_FLAGS_RELEASE "")
+set(CMAKE_CXX_FLAGS_DEBUG   "")
+set(CMAKE_C_FLAGS_RELEASE   "")
+set(CMAKE_C_FLAGS_DEBUG     "")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_INSTALL_RPATH $ORIGIN $ORIGIN/../lib)
 
