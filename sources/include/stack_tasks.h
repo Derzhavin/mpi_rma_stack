@@ -77,7 +77,7 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
 
     if (rank == 0)
     {
-        for (int i = 0; i < 100; ++i)
+        for (int i = 0; i < 2000; ++i)
         {
             stack.push(1);
         }
@@ -99,7 +99,7 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
             int defaultValue = -1;
             stack.pop(e, defaultValue);
         }
-        std::this_thread::sleep_for(workload);
+//        std::this_thread::sleep_for(workload);
     }
     const double tEndSec = MPI_Wtime();
 
