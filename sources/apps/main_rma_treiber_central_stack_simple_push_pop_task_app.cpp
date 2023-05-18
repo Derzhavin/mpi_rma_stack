@@ -6,7 +6,6 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dup_filter_sink.h>
-#include <iostream>
 #include <chrono>
 
 #include "outer/RmaTreiberCentralStack.h"

@@ -114,3 +114,92 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
     SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
 }
+
+template<typename StackImpl,
+        typename = EnableIfValueTypeIsInt<StackImpl>>
+void runStackOnlyPushBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
+                                          std::shared_ptr<spdlog::sinks::sink> loggerSink)
+{
+    SPDLOG_INFO("started 'runStackOnlyPushBenchmarkTask'");
+
+    auto pLogger = std::make_shared<spdlog::logger>(producerConsumerBenchmarkLoggerName.data(), loggerSink);
+    pLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+    pLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+
+    const auto workload{1us};
+    const auto totalOpsNum{15'000};
+
+    auto procNum{0};
+    MPI_Comm_size(comm, &procNum);
+    const auto opsNum{totalOpsNum / procNum};
+
+    int rank{-1};
+    MPI_Comm_rank(comm, &rank);
+
+    const double tBeginSec = MPI_Wtime();
+    for (int i = 0; i < opsNum; ++i)
+    {
+        stack.push(i);
+        std::this_thread::sleep_for(workload);
+    }
+    const double tEndSec = MPI_Wtime();
+
+    const double workloadSec = std::chrono::duration_cast<std::chrono::microseconds>(workload).count() / 1'000'000.0f;
+    const double tElapsedSec = tEndSec - tBeginSec - (opsNum * workloadSec);
+
+    double tTotalElapsedSec{0};
+    MPI_Allreduce(&tElapsedSec, &tTotalElapsedSec, 1, MPI_DOUBLE, MPI_MAX, comm);
+
+    SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
+    SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
+}
+
+template<typename StackImpl,
+        typename = EnableIfValueTypeIsInt<StackImpl>>
+void runStackOnlyPopBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
+                                          std::shared_ptr<spdlog::sinks::sink> loggerSink)
+{
+    SPDLOG_INFO("started 'runStackOnlyPopBenchmarkTask'");
+
+    auto pLogger = std::make_shared<spdlog::logger>(producerConsumerBenchmarkLoggerName.data(), loggerSink);
+    pLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+    pLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
+
+    const auto workload{1us};
+    const auto totalOpsNum{15'000};
+
+    auto procNum{0};
+    MPI_Comm_size(comm, &procNum);
+    const auto opsNum{totalOpsNum / procNum};
+
+    int rank{-1};
+    MPI_Comm_rank(comm, &rank);
+
+    if (rank == 0)
+    {
+        for (int i = 0; i < opsNum; ++i)
+        {
+            stack.push(i);
+        }
+    }
+    MPI_Barrier(comm);
+
+    const double tBeginSec = MPI_Wtime();
+    for (int i = 0; i < opsNum; ++i)
+    {
+        int e{-1};
+        int defaultValue = -1;
+        stack.pop(e, defaultValue);
+        std::this_thread::sleep_for(workload);
+    }
+    const double tEndSec = MPI_Wtime();
+
+    const double workloadSec = std::chrono::duration_cast<std::chrono::microseconds>(workload).count() / 1'000'000.0f;
+    const double tElapsedSec = tEndSec - tBeginSec - (opsNum * workloadSec);
+
+    double tTotalElapsedSec{0};
+    MPI_Allreduce(&tElapsedSec, &tTotalElapsedSec, 1, MPI_DOUBLE, MPI_MAX, comm);
+
+    SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
+    SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
+}

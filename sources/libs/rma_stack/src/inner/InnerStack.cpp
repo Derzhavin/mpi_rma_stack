@@ -2,6 +2,7 @@
 // Created by denis on 20.04.23.
 //
 
+#include <random>
 #include "inner/InnerStack.h"
 #include "MpiException.h"
 
@@ -115,12 +116,19 @@ namespace rma_stack::ref_counting
         uint32_t oldAcquiredField{0};
         uint32_t resAcquiredField{0};
 
+        std::random_device rd;
+        std::mt19937 mt(rd());
+
+        std::uniform_int_distribution<int> dist(0, static_cast<int>(m_elemsUpLimit));
+
         MPI_Win_lock(MPI_LOCK_SHARED, rank, MPI_MODE_NOCHECK, m_nodesWin);
 
-        for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(m_elemsUpLimit); ++i)
+        bool foundFreeNodeRandomly{false};
+        for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(std::min(m_elemsUpLimit, 10ul)); ++i)
         {
+            const auto idx = static_cast<MPI_Aint>(dist(mt));
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
-            const auto nodeDisplacement = i * nodeSize;
+            const auto nodeDisplacement = idx * nodeSize;
             const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[rank], nodeDisplacement);
 
             MPI_Compare_and_swap(&newAcquiredField,
@@ -142,10 +150,44 @@ namespace rma_stack::ref_counting
             if (!resAcquiredField)
             {
                 nodeGlobalAddress.rank = rank;
-                nodeGlobalAddress.offset = i;
+                nodeGlobalAddress.offset = idx;
+                foundFreeNodeRandomly = true;
                 break;
             }
         }
+        if (!foundFreeNodeRandomly)
+        {
+            for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(m_elemsUpLimit); ++i)
+            {
+                constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
+                const auto nodeDisplacement = i * nodeSize;
+                const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[rank], nodeDisplacement);
+
+                MPI_Compare_and_swap(&newAcquiredField,
+                                     &oldAcquiredField,
+                                     &resAcquiredField,
+                                     MPI_UINT32_T,
+                                     rank,
+                                     nodeOffset,
+                                     m_nodesWin
+                );
+                MPI_Win_flush(rank, m_nodesWin);
+
+                m_logger->trace("resAcquiredField = {} of (rank - {}, offset - {}) in 'acquireNode'",
+                                resAcquiredField,
+                                rank,
+                                i
+                );
+                assert(resAcquiredField == 0 || resAcquiredField == 1);
+                if (!resAcquiredField)
+                {
+                    nodeGlobalAddress.rank = rank;
+                    nodeGlobalAddress.offset = i;
+                    break;
+                }
+            }
+        }
+
         MPI_Win_unlock(rank, m_nodesWin);
 
         m_logger->trace("finished 'acquireNode'");

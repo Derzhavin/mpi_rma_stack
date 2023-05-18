@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
                 elemsUpLimit,
                 duplicatingFilterSink
         );
-        runStackRandomOperationBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
+        runStackOnlyPushBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
         MPI_Barrier(comm);
         rmaTreiberStack.release();
     }

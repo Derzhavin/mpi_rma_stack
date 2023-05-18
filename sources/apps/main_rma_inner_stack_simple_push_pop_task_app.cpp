@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         auto innerStack = rma_stack::ref_counting::InnerStack(
                 comm,
                 info,
-                false,
+                true,
                 elemsUpLimit,
                 std::move(pInnerStackLogger)
         );
