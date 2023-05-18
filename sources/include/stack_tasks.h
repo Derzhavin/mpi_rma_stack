@@ -7,6 +7,7 @@
 #include <chrono>
 #include <spdlog/spdlog.h>
 #include <ctime>
+#include <random>
 
 #include "IStack.h"
 #include "inner/InnerStack.h"
@@ -83,13 +84,14 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
         }
     }
     MPI_Barrier(comm);
-    time_t t;
-    std::srand((unsigned) time(&t));
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_int_distribution<int> dist(0, 50);
 
     const double tBeginSec = MPI_Wtime();
     for (int i = 0; i < opsNum; ++i)
     {
-        int e = std::rand() % 50;
+        int e = dist(mt);
         if (e > 25)
         {
             stack.push(e);
@@ -99,7 +101,7 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
             int defaultValue = -1;
             stack.pop(e, defaultValue);
         }
-//        std::this_thread::sleep_for(workload);
+        std::this_thread::sleep_for(workload);
     }
     const double tEndSec = MPI_Wtime();
 
