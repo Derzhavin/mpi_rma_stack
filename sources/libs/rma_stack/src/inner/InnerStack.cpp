@@ -160,7 +160,7 @@ namespace rma_stack::ref_counting
                                                  nodeDisplacement
         );
         int32_t acquiredField{1};
-        int32_t acquiredField1{acquiredField1};
+        int32_t acquiredField1{acquiredField};
         {
             const auto r = nodeAddress.rank;
             const auto o = nodeAddress.offset;
