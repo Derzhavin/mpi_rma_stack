@@ -8,7 +8,7 @@
 #include <spdlog/sinks/dup_filter_sink.h>
 #include <chrono>
 
-#include "outer/RmaTreiberCentralStack.h"
+#include "outer/RmaTreiberDecentralizedStack.h"
 #include "include/stack_tasks.h"
 #include "include/logging.h"
 
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 
     try
     {
-        auto rmaTreiberStack = rma_stack::RmaTreiberCentralStack<int>::create(
+        auto rmaTreiberStack = rma_stack::RmaTreiberDecentralizedStack<int>::create(
                 comm,
                 info,
                 minBackoffDelay,
@@ -58,7 +58,8 @@ int main(int argc, char *argv[])
                 elemsUpLimit,
                 duplicatingFilterSink
         );
-        runStackRandomOperationBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
+        runStackOnlyPushBenchmarkTask(rmaTreiberStack, comm, fileBenchmarkSink);
+
         MPI_Barrier(comm);
         rmaTreiberStack.release();
     }
