@@ -104,12 +104,13 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberDecentralizedStack<T>::pushImpl(const T &rValue)
     {
+        ExponentialBackoff backoff(m_backoffMinDelay, m_backoffMaxDelay);
         m_innerStack.push([&rValue, &win = m_userDataWin, &pDataBaseAddresses = m_pUserDataBaseAddresses](
                                   const ref_counting::GlobalAddress &dataAddress) {
                 constexpr auto valueSize = sizeof(rValue);
                 const auto offset = dataAddress.offset * valueSize;
                 const auto displacement = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
-                MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
+                MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, MPI_MODE_NOCHECK, win);
                 MPI_Put(&rValue,
                       valueSize,
                       MPI_UNSIGNED_CHAR,
@@ -122,8 +123,7 @@ namespace rma_stack
                 MPI_Win_flush(dataAddress.rank, win);
                 MPI_Win_unlock(dataAddress.rank, win);
             },
-            [&backoffMinDelay = m_backoffMinDelay, &backoffMaxDelay = m_backoffMaxDelay] () {
-                ExponentialBackoff backoff(backoffMinDelay, backoffMaxDelay);
+            [&backoff] () {
                 backoff.backoff();
             }
         );
@@ -134,6 +134,7 @@ namespace rma_stack
     template<typename T>
     void RmaTreiberDecentralizedStack<T>::popImpl(T &rValue, const T &rDefaultValue)
     {
+        ExponentialBackoff backoff(m_backoffMinDelay, m_backoffMaxDelay);
         m_innerStack.pop([&rValue, &rDefaultValue, &win = m_userDataWin, &pDataBaseAddresses = m_pUserDataBaseAddresses](
                                  const ref_counting::GlobalAddress &dataAddress) {
             if (ref_counting::isGlobalAddressDummy(dataAddress))
@@ -145,7 +146,7 @@ namespace rma_stack
             constexpr auto valueSize = sizeof(rValue);
             const auto offset = dataAddress.offset * valueSize;
             const auto displacement = MPI_Aint_add(pDataBaseAddresses[dataAddress.rank], offset);
-            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, 0, win);
+            MPI_Win_lock(MPI_LOCK_SHARED, dataAddress.rank, MPI_MODE_NOCHECK, win);
             MPI_Get(&rValue,
                  valueSize,
                  MPI_UNSIGNED_CHAR,
@@ -158,8 +159,7 @@ namespace rma_stack
             MPI_Win_flush(dataAddress.rank, win);
             MPI_Win_unlock(dataAddress.rank, win);
             },
-            [&backoffMinDelay = m_backoffMinDelay, &backoffMaxDelay = m_backoffMaxDelay] () {
-                ExponentialBackoff backoff(backoffMinDelay, backoffMaxDelay);
+            [&backoff] () {
                 backoff.backoff();
             }
         );
