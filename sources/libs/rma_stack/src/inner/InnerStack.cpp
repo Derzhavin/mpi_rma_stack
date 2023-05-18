@@ -124,7 +124,8 @@ namespace rma_stack::ref_counting
         MPI_Win_lock(MPI_LOCK_SHARED, rank, MPI_MODE_NOCHECK, m_nodesWin);
 
         bool foundFreeNodeRandomly{false};
-        for (MPI_Aint i = 0; i < static_cast<MPI_Aint>(std::min(m_elemsUpLimit, 10ul)); ++i)
+        const auto randomTriesNumber = static_cast<MPI_Aint>(static_cast<double>(m_elemsUpLimit) * 0.07);
+        for (MPI_Aint i = 0; i < randomTriesNumber; ++i)
         {
             const auto idx = static_cast<MPI_Aint>(dist(mt));
             constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
