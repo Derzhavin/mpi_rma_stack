@@ -112,4 +112,5 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
     MPI_Allreduce(&tElapsedSec, &tTotalElapsedSec, 1, MPI_DOUBLE, MPI_MAX, comm);
 
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
+    SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
 }
