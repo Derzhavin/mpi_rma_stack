@@ -1,3 +1,26 @@
 echo "procNum: $1"
 cd ../install-release/bin/ || exit
-mpiexec -np "$1" ./rma_treiber_decentralized_stack_only_push_benchmark_app
+
+if [ ! -d "decentralized" ]
+then
+  mkdir "decentralized"
+fi
+
+cd "decentralized" || exit
+
+if [ ! -d "only_push" ]
+then
+  mkdir "only_push"
+fi
+
+cd "only_push" || exit
+
+if [ -d $1 ]
+then
+  echo "cannot run the mpiexec because the directory $1 already exists"
+  exit 1
+fi
+
+mkdir $1
+cd $1 || exit
+mpiexec -np "$1" ../../../rma_treiber_decentralized_stack_only_push_benchmark_app

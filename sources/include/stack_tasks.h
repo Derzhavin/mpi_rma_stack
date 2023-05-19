@@ -77,7 +77,7 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    const auto warmUp = std::ceil(opsNum * 0.3);
+    const auto warmUp = std::ceil(opsNum * 0.1);
 
     for (int i = 0; i < warmUp; ++i)
     {
@@ -185,12 +185,11 @@ void runStackOnlyPopBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    if (rank == 0)
+    const auto warmUp = std::ceil(opsNum * 0.1);
+
+    for (int i = 0; i < warmUp; ++i)
     {
-        for (int i = 0; i < opsNum; ++i)
-        {
-            stack.push(i);
-        }
+        stack.push(1);
     }
     MPI_Barrier(comm);
 
