@@ -1,3 +1,5 @@
+#PBS -l select=$($1):ncpus=1:mpiprocs=1:mem=1000m,place=free
+
 echo "procNum: $1"
 cd ../install-debug/bin/ || exit
 
