@@ -1,3 +1,4 @@
+#PBS -l walltime=00:10:00
 #PBS -l select=$($1):ncpus=1:mpiprocs=1:mem=1000m,place=free
 
 echo "procNum: $1"
