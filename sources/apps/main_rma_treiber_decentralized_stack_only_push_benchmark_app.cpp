@@ -7,6 +7,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/dup_filter_sink.h>
 #include <chrono>
+#include <cmath>
 
 #include "outer/RmaTreiberDecentralizedStack.h"
 #include "include/stack_tasks.h"
@@ -27,7 +28,10 @@ int main(int argc, char *argv[])
 
     const auto minBackoffDelay = 1ns;
     const auto maxBackoffDelay = 100ns;
-    const auto elemsUpLimit{20000};
+
+    int size{0};
+    MPI_Comm_size(comm, &size);
+    const int elemsUpLimit = std::ceil(30000. / size);
 
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s

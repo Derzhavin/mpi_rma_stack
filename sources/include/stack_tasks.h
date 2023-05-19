@@ -52,6 +52,7 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
         stack.pop(elem, defaultElem);
         SPDLOG_DEBUG("brought back elem by 'pop' {}", elem);
     }
+    SPDLOG_INFO("finished 'runStackSimpleIntPushPopTask'");
 }
 
 
@@ -71,22 +72,24 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
 
     auto procNum{0};
     MPI_Comm_size(comm, &procNum);
-    const auto opsNum{totalOpsNum / procNum};
+    const int opsNum = std::ceil(((double)totalOpsNum) / procNum);
 
     int rank{-1};
     MPI_Comm_rank(comm, &rank);
 
-    if (rank == 0)
+    const auto warmUp = std::ceil(opsNum * 0.3);
+
+    for (int i = 0; i < warmUp; ++i)
     {
-        for (int i = 0; i < 2000; ++i)
-        {
-            stack.push(1);
-        }
+        stack.push(1);
     }
     MPI_Barrier(comm);
     std::random_device rd;
     std::mt19937 mt(rd());
     std::uniform_int_distribution<int> dist(0, 50);
+
+    size_t pushCnt{0};
+    size_t popCnt{0};
 
     const double tBeginSec = MPI_Wtime();
     for (int i = 0; i < opsNum; ++i)
@@ -95,11 +98,13 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
         if (e > 25)
         {
             stack.push(e);
+            ++pushCnt;
         }
         else
         {
             int defaultValue = -1;
             stack.pop(e, defaultValue);
+            ++popCnt;
         }
         std::this_thread::sleep_for(workload);
     }
@@ -113,6 +118,9 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
 
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
     SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
+    SPDLOG_LOGGER_INFO(pLogger, "push count {}, pop count {}, warm up {}", pushCnt, popCnt, warmUp);
+
+    SPDLOG_INFO("finished 'runStackRandomOperationBenchmarkTask'");
 }
 
 template<typename StackImpl,
@@ -152,6 +160,8 @@ void runStackOnlyPushBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MP
 
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
     SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
+
+    SPDLOG_INFO("finished 'runStackOnlyPushBenchmarkTask'");
 }
 
 template<typename StackImpl,
@@ -202,4 +212,6 @@ void runStackOnlyPopBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI
 
     SPDLOG_LOGGER_INFO(pLogger, "procs {}, rank {}, elapsed (sec) {}, total (sec) {}", procNum, rank, tElapsedSec, tTotalElapsedSec);
     SPDLOG_LOGGER_INFO(pLogger, "total ops {}, ops {}", totalOpsNum, opsNum);
+
+    SPDLOG_INFO("finished 'runStackOnlyPopBenchmarkTask'");
 }

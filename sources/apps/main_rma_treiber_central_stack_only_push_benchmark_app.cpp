@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 
     const auto minBackoffDelay = 1ns;
     const auto maxBackoffDelay = 100ns;
-    const auto elemsUpLimit{20000};
+    const auto elemsUpLimit{30000};
 
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s

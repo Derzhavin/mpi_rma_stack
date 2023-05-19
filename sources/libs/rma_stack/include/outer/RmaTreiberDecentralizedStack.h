@@ -209,7 +209,7 @@ namespace rma_stack
         }
         std::fill_n(m_pUserDataArr, elemsUpLimit, T());
         {
-            auto mpiStatus = MPI_Win_attach(m_userDataWin, m_pUserDataArr, elemsUpLimit);
+            auto mpiStatus = MPI_Win_attach(m_userDataWin, m_pUserDataArr, elemSize * elemsUpLimit);
             if (mpiStatus != MPI_SUCCESS)
                 throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
         }
@@ -245,7 +245,7 @@ namespace rma_stack
                 std::move(pInnerStackLogger)
         );
 
-        auto pOuterStackLogger = std::make_shared<spdlog::logger>("RmaTreiberCentralStack", loggerSink);
+        auto pOuterStackLogger = std::make_shared<spdlog::logger>("RmaTreiberDecentralizedStack", loggerSink);
         spdlog::register_logger(pOuterStackLogger);
         pOuterStackLogger->set_level(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));
         pOuterStackLogger->flush_on(static_cast<spdlog::level::level_enum>(SPDLOG_ACTIVE_LEVEL));

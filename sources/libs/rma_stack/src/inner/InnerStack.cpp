@@ -124,7 +124,7 @@ namespace rma_stack::ref_counting
         MPI_Win_lock(MPI_LOCK_SHARED, rank, MPI_MODE_NOCHECK, m_nodesWin);
 
         bool foundFreeNodeRandomly{false};
-        const auto randomTriesNumber = static_cast<MPI_Aint>(static_cast<double>(m_elemsUpLimit) * 0.07);
+        const auto randomTriesNumber = static_cast<MPI_Aint>(std::floor((double)m_elemsUpLimit * 0.05));
         for (MPI_Aint i = 0; i < randomTriesNumber; ++i)
         {
             const auto idx = static_cast<MPI_Aint>(dist(mt));
@@ -444,8 +444,8 @@ namespace rma_stack::ref_counting
 
     void InnerStack::release()
     {
-        MPI_Free_mem(m_pNodesArr);
-        m_pNodesArr = nullptr;
+//        MPI_Free_mem(m_pNodesArr);
+//        m_pNodesArr = nullptr;
         m_logger->trace("freed up node arr RMA memory");
 
         MPI_Win_free(&m_nodesWin);
@@ -472,6 +472,8 @@ namespace rma_stack::ref_counting
                 throw custom_mpi::MpiException("failed to create RMA window for head", __FILE__, __func__, __LINE__, mpiStatus);
         }
 
+        const auto nodesSize = static_cast<MPI_Aint>(sizeof(Node) * m_elemsUpLimit);
+
         if (m_centralized)
         {
             m_pBaseNodeArrAddresses = std::make_unique<MPI_Aint[]>(1);
@@ -479,8 +481,6 @@ namespace rma_stack::ref_counting
             if (m_rank == HEAD_RANK)
             {
                 m_logger->trace("started to initialize node array");
-                constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
-                const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
                 {
                     auto mpiStatus = MPI_Alloc_mem(nodesSize, MPI_INFO_NULL,
                                                    &m_pNodesArr);
@@ -497,14 +497,13 @@ namespace rma_stack::ref_counting
                 std::fill_n(m_pNodesArr, m_elemsUpLimit, Node());
                 m_logger->trace("initialized node array");
                 {
-                    const auto winAttachSize = static_cast<MPI_Aint>(m_elemsUpLimit);
-                    auto mpiStatus = MPI_Win_attach(m_nodesWin, m_pNodesArr, winAttachSize);
+                    auto mpiStatus = MPI_Win_attach(m_nodesWin, (void*)m_pNodesArr, nodesSize);
                     if (mpiStatus != MPI_SUCCESS) {
                         throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
                     }
                 }
                 m_logger->trace("attach nodes RMA window");
-                MPI_Get_address(m_pNodesArr, m_pBaseNodeArrAddresses.get());
+                MPI_Get_address(m_pNodesArr, (MPI_Aint*)m_pBaseNodeArrAddresses.get());
             }
 
             m_logger->trace("started to broadcast node array addresses");
@@ -517,8 +516,6 @@ namespace rma_stack::ref_counting
         {
             m_logger->trace("started to initialize node array");
 
-            constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
-            const auto nodesSize    = static_cast<MPI_Aint>(nodeSize * m_elemsUpLimit);
             {
                 auto mpiStatus = MPI_Alloc_mem(nodesSize, MPI_INFO_NULL,
                                                &m_pNodesArr);
@@ -535,8 +532,7 @@ namespace rma_stack::ref_counting
             std::fill_n(m_pNodesArr, m_elemsUpLimit, Node());
             m_logger->trace("initialized node array");
             {
-                const auto winAttachSize = static_cast<MPI_Aint>(m_elemsUpLimit);
-                auto mpiStatus = MPI_Win_attach(m_nodesWin, m_pNodesArr, winAttachSize);
+                auto mpiStatus = MPI_Win_attach(m_nodesWin, (void*)m_pNodesArr, nodesSize);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
@@ -545,7 +541,7 @@ namespace rma_stack::ref_counting
             int procNum{0};
             MPI_Comm_size(comm, &procNum);
             m_pBaseNodeArrAddresses = std::make_unique<MPI_Aint[]>(procNum);
-            MPI_Get_address(m_pNodesArr, &m_pBaseNodeArrAddresses[m_rank]);
+            MPI_Get_address(m_pNodesArr, (MPI_Aint*)&m_pBaseNodeArrAddresses[m_rank]);
 
             for (int i = 0; i < procNum; ++i)
             {
@@ -577,7 +573,7 @@ namespace rma_stack::ref_counting
             *m_pHeadCountedNodePtr = CountedNodePtr();
             m_logger->trace("initialized head");
             {
-                auto mpiStatus = MPI_Win_attach(m_headWin, m_pHeadCountedNodePtr, 1);
+                auto mpiStatus = MPI_Win_attach(m_headWin, (void*)m_pHeadCountedNodePtr, 1);
                 if (mpiStatus != MPI_SUCCESS)
                     throw custom_mpi::MpiException("failed to attach RMA window", __FILE__, __func__, __LINE__, mpiStatus);
             }
