@@ -5,6 +5,8 @@
 #include "include/stack_tasks.h"
 
 #include "outer/ExponentialBackoff.h"
+
+// Задача для отладки внутреннего стека.
 void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, MPI_Comm comm)
 {
     spdlog::debug("started 'runInnerStackSimplePushPopTask'");
@@ -29,7 +31,7 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
         spdlog::debug("received address by 'push' ({}, {})", r, o);
     }
     MPI_Barrier(comm);
-//    stack.printStack();
+    stack.printStack();
     MPI_Barrier(comm);
     for (int i = 0; i < pushedAddressesSize; ++i)
     {

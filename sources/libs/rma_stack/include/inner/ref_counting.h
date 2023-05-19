@@ -9,10 +9,13 @@
 
 namespace rma_stack::ref_counting
 {
-    constexpr uint64_t RankBitsLimit            = 13;
-    constexpr uint64_t ExternalCounterBitsLimit = RankBitsLimit;
+    constexpr uint64_t RankBitsLimit            = 13; // Кол-во бит под счётчик количества процессов.
+    constexpr uint64_t ExternalCounterBitsLimit = RankBitsLimit; // Кол-во бит под внешний счётчик ссылок.
+
+    // Оставшееся кол-во бит отводится под адресацию памяти внутри вычислительного узла.
     constexpr uint64_t OffsetBitsLimit          = 64 - RankBitsLimit * 2;
     constexpr uint64_t InternalCounterBitsLimit = RankBitsLimit;
+    // Необходимо для обозначения глобального указателя на NULL - (DummyRank, любое смещение).
     constexpr uint64_t DummyRank                = (1 << RankBitsLimit) - 1;
 
     struct GlobalAddress

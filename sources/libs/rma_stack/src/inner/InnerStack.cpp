@@ -18,6 +18,7 @@ namespace rma_stack::ref_counting
         auto nodeAddress = acquireNode(m_centralized ? HEAD_RANK : m_rank);
         if (isGlobalAddressDummy(nodeAddress))
         {
+            putDataCallback(nodeAddress);
             m_logger->trace("failed to find free node in 'push'");
             return;
         }
@@ -32,6 +33,7 @@ namespace rma_stack::ref_counting
 
         CountedNodePtr resHeadCountedNodePtr;
 
+        // Получение текущей головы списка.
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, MPI_MODE_NOCHECK, m_headWin);
         MPI_Fetch_and_op(nullptr,
                          &resHeadCountedNodePtr,
@@ -59,6 +61,11 @@ namespace rma_stack::ref_counting
         const auto countedNodePtrNextDisplacement   = static_cast<MPI_Aint>(nodeSize * nodeAddress.offset) + 8;
         const MPI_Aint countedNodePtrNextOffset     = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank], countedNodePtrNextDisplacement);
 
+        /*
+         * Пока не удастся заменить текущую голову списка операцией на новый узел
+         * операцией CAS, перезаписывать глобальный указатель на следующий узел
+         * нового узла текущей головой списка.
+         */
         MPI_Win_lock(MPI_LOCK_SHARED, nodeAddress.rank, MPI_MODE_NOCHECK, m_nodesWin);
         do
         {
@@ -119,6 +126,12 @@ namespace rma_stack::ref_counting
 
         MPI_Win_lock(MPI_LOCK_SHARED, rank, MPI_MODE_NOCHECK, m_nodesWin);
 
+        /* Поиск свободного адреса работает слишком медленно,
+         * если искать его без случайного выбора, поэтому сначала
+         * производится несколько попыток угадать, какой адрес не
+         * занят. Если угадать не удалось, тогда сканируется весь
+         * массив адресов.
+         */
         bool foundFreeNodeRandomly{false};
         const auto randomTriesNumber = static_cast<MPI_Aint>(std::floor((double)m_elemsUpLimit * 0.05));
         for (MPI_Aint i = 0; i < randomTriesNumber; ++i)
@@ -245,7 +258,8 @@ namespace rma_stack::ref_counting
         m_logger->trace("started 'pop'");
 
         CountedNodePtr oldHeadCountedNodePtr;
-        
+
+        // Чтение текущей головы односвязного списка.
         MPI_Win_lock(MPI_LOCK_SHARED, HEAD_RANK, MPI_MODE_NOCHECK, m_headWin);
         MPI_Fetch_and_op(nullptr,
                          &oldHeadCountedNodePtr,
@@ -265,6 +279,7 @@ namespace rma_stack::ref_counting
         }
         for (;;)
         {
+            // Увеличение кол-во внешних ссылок на голову на 1.
             increaseHeadCount(oldHeadCountedNodePtr);
             {
                 const auto r = oldHeadCountedNodePtr.getRank();
@@ -279,10 +294,18 @@ namespace rma_stack::ref_counting
             };
             if (isGlobalAddressDummy(nodeAddress))
             {
+                /*
+                 * Если глобальный указатель указывает на NULL, то стек пуст,
+                 * и нужно сообщить об этом пользователю, а затем завершить POP.
+                 */
                 getDataCallback(nodeAddress);
                 break;
             }
 
+            /*
+             * Получение указателя на следующий за головой списка узел
+             * с последующей заменой головы на этот узел операцией CAS.
+             */
             CountedNodePtr countedNodePtrNext;
 
             const auto nodeDisplacement             = static_cast<MPI_Aint>(nodeAddress.offset * sizeof(Node) + sizeof(CountedNodePtr));
@@ -331,7 +354,7 @@ namespace rma_stack::ref_counting
                 const auto externalCount    = static_cast<int32_t>(oldHeadCountedNodePtr.getExternalCounter());
                 const int32_t countIncrease = externalCount - 2;
                 int32_t resInternalCount{0};
-
+                // Атомарное уменьшение внутреннего счётчика на кол-во внешних ссылок минус 2.
                 MPI_Fetch_and_op(
                         &countIncrease,
                         &resInternalCount,
@@ -354,9 +377,9 @@ namespace rma_stack::ref_counting
                 const auto internalCounterOffset        = MPI_Aint_add(m_pBaseNodeArrAddresses[nodeAddress.rank],
                                                                        internalCounterDisplacement
                 );
-
                 const int64_t countIncrease{-1};
                 int64_t resInternalCount{0};
+                // Атомарное уменьшение внутреннего счётчика на 1.
                 MPI_Fetch_and_op(
                         &countIncrease,
                         &resInternalCount,
@@ -385,6 +408,12 @@ namespace rma_stack::ref_counting
         m_logger->trace("finished 'pop'");
     }
 
+    /*
+     * Функция используется для увеличения внешнего счётчика ссылок
+     * на голову односвязного списка (вершину стека) на 1 для текущего
+     * процесса, чтобы другие процессы не освободили память под голову
+     * до того, как к ней обратится текущий процесс.
+     */
     void InnerStack::increaseHeadCount(CountedNodePtr &oldHeadCountedNodePtr)
     {
         CountedNodePtr newCountedNodePtr;

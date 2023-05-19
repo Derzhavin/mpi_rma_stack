@@ -2,6 +2,11 @@
 // Created by denis on 22.01.23.
 //
 
+/*
+ * Программа для измерения продолжительности нескольких случайных равновероятных операций PUSH и POP
+ * для централизованного стека Трейбера.
+ */
+
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -29,9 +34,18 @@ int main(int argc, char *argv[])
     const auto maxBackoffDelay = 100ns;
     const auto elemsUpLimit{30000};
 
+    /*
+     * Сообщения, которые поступили подряд в течение 1 с,
+     * будут объединены в один лог с информацией об их
+     * количестве.
+     */
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s
     );
+    /*
+     * default - лог отладки операций со стеком.
+     * benchmark - отдельный лог, в который поступает информация об измерениях.
+     */
 
     auto loggingDefaultFilename = getLoggingFilename(rank, "default");
     auto fileDefaultSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(

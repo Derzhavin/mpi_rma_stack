@@ -24,13 +24,13 @@ namespace rma_stack::ref_counting
         [[nodiscard]] uint64_t getRank() const;
         bool incExternalCounter();
         [[nodiscard]] bool isDummy() const;
-    private:
-        uint64_t m_offset               : OffsetBitsLimit;
-        uint64_t m_rank                 : RankBitsLimit;
-        uint64_t m_externalCounter      : ExternalCounterBitsLimit;
 
         friend bool operator==(CountedNodePtr& lhs, CountedNodePtr& rhs);
         friend bool operator!=(CountedNodePtr& lhs, CountedNodePtr& rhs);
+    private:
+        uint64_t m_offset               : OffsetBitsLimit;
+        uint64_t m_rank                 : RankBitsLimit;
+        uint64_t m_externalCounter      : ExternalCounterBitsLimit; // Внутренний счётчик ссылок на узел.
     };
 
 } // rma_stack

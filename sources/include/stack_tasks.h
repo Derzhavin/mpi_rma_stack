@@ -19,6 +19,7 @@ void runInnerStackSimplePushPopTask(rma_stack::ref_counting::InnerStack &stack, 
 template<typename StackImpl>
 using EnableIfValueTypeIsInt = std::enable_if_t<std::is_same_v<typename StackImpl::ValueType, int>>;
 
+// Задача для отладки внешнего стека, предназначена только для данных типа 'int'.
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
 void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm)
@@ -55,7 +56,10 @@ void runStackSimpleIntPushPopTask(stack_interface::IStack<StackImpl> &stack, MPI
     SPDLOG_INFO("finished 'runStackSimpleIntPushPopTask'");
 }
 
-
+/*
+ * Задача для измерения продолжительности случайных равновероятных операций PUSH и POP внешнего стека,
+ * предназначена только для данных типа 'int'. workload - эмуляция сторонней нагрузки на приложение.
+ */
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
 void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
@@ -123,6 +127,10 @@ void runStackRandomOperationBenchmarkTask(stack_interface::IStack<StackImpl> &st
     SPDLOG_INFO("finished 'runStackRandomOperationBenchmarkTask'");
 }
 
+/*
+ * Задача для измерения продолжительности нескольких операций PUSH внешнего стека,
+ * предназначена только для данных типа 'int'. workload - эмуляция сторонней нагрузки на приложение.
+ */
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
 void runStackOnlyPushBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,
@@ -164,6 +172,10 @@ void runStackOnlyPushBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MP
     SPDLOG_INFO("finished 'runStackOnlyPushBenchmarkTask'");
 }
 
+/*
+ * Задача для измерения продолжительности нескольких операций POP внешнего стека,
+ * предназначена только для данных типа 'int'. workload - эмуляция сторонней нагрузки на приложение.
+ */
 template<typename StackImpl,
         typename = EnableIfValueTypeIsInt<StackImpl>>
 void runStackOnlyPopBenchmarkTask(stack_interface::IStack<StackImpl> &stack, MPI_Comm comm,

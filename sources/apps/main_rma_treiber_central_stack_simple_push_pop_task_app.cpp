@@ -2,6 +2,10 @@
 // Created by denis on 22.01.23.
 //
 
+/*
+ * Программа для элементарной отладки централизованного стека Трейбера.
+ */
+
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -29,9 +33,17 @@ int main(int argc, char *argv[])
     const auto maxBackoffDelay = 100ns;
     const auto elemsUpLimit{100};
 
+    /*
+     * Сообщения, которые поступили подряд в течение 1 с,
+     * будут объединены в один лог с информацией об их
+     * количестве.
+     */
     auto duplicatingFilterSink = std::make_shared<spdlog::sinks::dup_filter_sink_mt>(
             1s
     );
+    /*
+     * default - лог отладки операций со стеком.
+     */
 
     auto loggingDefaultFilename = getLoggingFilename(rank, "default");
     auto fileDefaultSink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
