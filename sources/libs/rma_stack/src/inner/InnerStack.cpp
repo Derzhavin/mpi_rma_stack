@@ -112,14 +112,10 @@ namespace rma_stack::ref_counting
             return nodeGlobalAddress;
         }
 
-        uint32_t newAcquiredField{1};
-        uint32_t oldAcquiredField{0};
-        uint32_t resAcquiredField{0};
-
         std::random_device rd;
         std::mt19937 mt(rd());
 
-        std::uniform_int_distribution<int> dist(0, static_cast<int>(m_elemsUpLimit));
+        std::uniform_int_distribution<int> dist(0, static_cast<int>(m_elemsUpLimit - 1));
 
         MPI_Win_lock(MPI_LOCK_SHARED, rank, MPI_MODE_NOCHECK, m_nodesWin);
 
@@ -128,9 +124,12 @@ namespace rma_stack::ref_counting
         for (MPI_Aint i = 0; i < randomTriesNumber; ++i)
         {
             const auto idx = static_cast<MPI_Aint>(dist(mt));
-            constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
-            const auto nodeDisplacement = idx * nodeSize;
+            const auto nodeDisplacement = idx * static_cast<MPI_Aint>(sizeof(Node));
             const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[rank], nodeDisplacement);
+
+            uint32_t newAcquiredField{1};
+            uint32_t oldAcquiredField{0};
+            uint32_t resAcquiredField{0};
 
             MPI_Compare_and_swap(&newAcquiredField,
                                  &oldAcquiredField,
@@ -163,6 +162,10 @@ namespace rma_stack::ref_counting
                 constexpr auto nodeSize = static_cast<MPI_Aint>(sizeof(Node));
                 const auto nodeDisplacement = i * nodeSize;
                 const MPI_Aint nodeOffset = MPI_Aint_add(m_pBaseNodeArrAddresses[rank], nodeDisplacement);
+
+                uint32_t newAcquiredField{1};
+                uint32_t oldAcquiredField{0};
+                uint32_t resAcquiredField{0};
 
                 MPI_Compare_and_swap(&newAcquiredField,
                                      &oldAcquiredField,
@@ -444,8 +447,8 @@ namespace rma_stack::ref_counting
 
     void InnerStack::release()
     {
-//        MPI_Free_mem(m_pNodesArr);
-//        m_pNodesArr = nullptr;
+        MPI_Free_mem(m_pNodesArr);
+        m_pNodesArr = nullptr;
         m_logger->trace("freed up node arr RMA memory");
 
         MPI_Win_free(&m_nodesWin);
